@@ -1,0 +1,378 @@
+import type { MonsterDefinition, MonsterSkillDefinition } from './monsterTypes';
+
+const skills: Record<string, MonsterSkillDefinition> = {};
+const monsters: Record<string, MonsterDefinition> = {};
+
+function addSkill(skill: MonsterSkillDefinition) {
+  skills[skill.id] = skill;
+  return skill.id;
+}
+
+function damageSkill(
+  id: string,
+  name: string,
+  power: number,
+  damageType: 'physical' | 'magical',
+  targetRule: 'enemy_single' | 'enemy_all',
+  description: string
+) {
+  return addSkill({
+    id,
+    tier: '怪物技能',
+    name,
+    behaviorCategory: '攻击',
+    cooldown: 0,
+    isBasicAttack: power === 50 && targetRule === 'enemy_single',
+    execution: { power, damageType, targetRule },
+    description
+  });
+}
+
+function addMonster(definition: MonsterDefinition) {
+  monsters[definition.id] = definition;
+}
+
+type ThemeEnemyIds = {
+  gruntWarrior: string;
+  gruntShooter: string;
+  gruntMage: string;
+  eliteWarrior: string;
+  eliteShooter: string;
+  eliteMage: string;
+};
+
+function addThemeEnemies(config: {
+  prefix: string;
+  ids: ThemeEnemyIds;
+  names: {
+    gruntWarrior: string;
+    gruntShooter: string;
+    gruntMage: string;
+    eliteWarrior: string;
+    eliteShooter: string;
+    eliteMage: string;
+  };
+  skills: {
+    warriorBasic: string;
+    shooterBasic: string;
+    mageBasic: string;
+    warriorPreview: string;
+    shooterArea: string;
+    mageGrowth: string;
+  };
+}) {
+  const warriorBasic = damageSkill(
+    `${config.prefix}_WARRIOR_BASIC`,
+    config.skills.warriorBasic,
+    50,
+    'physical',
+    'enemy_single',
+    '对当前合法单体目标造成50物理威力伤害。'
+  );
+  const shooterBasic = damageSkill(
+    `${config.prefix}_SHOOTER_BASIC`,
+    config.skills.shooterBasic,
+    50,
+    'physical',
+    'enemy_single',
+    '对当前合法单体目标造成50物理威力伤害。'
+  );
+  const mageBasic = damageSkill(
+    `${config.prefix}_MAGE_BASIC`,
+    config.skills.mageBasic,
+    50,
+    'magical',
+    'enemy_single',
+    '对当前合法单体目标造成50魔法威力伤害。'
+  );
+  const warriorPreview = addSkill({
+    id: `${config.prefix}_ELITE_WARRIOR_PREVIEW`,
+    tier: '精英技能',
+    name: config.skills.warriorPreview,
+    behaviorCategory: '预告攻击',
+    cooldown: 0,
+    isBasicAttack: false,
+    execution: {
+      power: 150,
+      damageType: 'physical',
+      targetRule: 'enemy_single',
+      telegraph: {
+        enabled: true,
+        followupSkillId: `${config.prefix}_ELITE_WARRIOR_PREVIEW`,
+        targetSelection: 'random_legal_single_target',
+        lockMode: 'unit',
+        invalidTargetResult: 'whiff'
+      }
+    },
+    description: '预告并锁定当前合法单体目标；下一次正常行动造成150物理威力伤害，目标失效时落空。'
+  });
+  const shooterArea = damageSkill(
+    `${config.prefix}_ELITE_SHOOTER_AREA`,
+    config.skills.shooterArea,
+    40,
+    'physical',
+    'enemy_all',
+    '对玩家场上全体分别造成40物理威力伤害。'
+  );
+  const mageGrowth = addSkill({
+    id: `${config.prefix}_ELITE_MAGE_GROWTH`,
+    tier: '精英技能',
+    name: config.skills.mageGrowth,
+    behaviorCategory: '强化',
+    cooldown: 0,
+    isBasicAttack: false,
+    execution: {
+      damageType: 'none',
+      targetRule: 'self',
+      effects: [{ type: 'increase_runtime_skill_power', targetSkillId: mageBasic, amount: 15 }]
+    },
+    description: `本场战斗中直接使【${config.skills.mageBasic}】当前威力提高15，不创建状态，可无限成长。`
+  });
+
+  addMonster({
+    id: config.ids.gruntWarrior,
+    name: config.names.gruntWarrior,
+    level: 1,
+    category: 'minor',
+    role: 'warrior',
+    defaultPosition: 'front',
+    coefficients: { physicalAttack: 1, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 },
+    baseHp: 450,
+    skills: [{ skillId: warriorBasic, weight: 100, selectionMode: 'weighted' }]
+  });
+  addMonster({
+    id: config.ids.gruntShooter,
+    name: config.names.gruntShooter,
+    level: 1,
+    category: 'minor',
+    role: 'shooter',
+    defaultPosition: 'back',
+    coefficients: { physicalAttack: 1.25, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 },
+    baseHp: 300,
+    skills: [{ skillId: shooterBasic, weight: 100, selectionMode: 'weighted' }]
+  });
+  addMonster({
+    id: config.ids.gruntMage,
+    name: config.names.gruntMage,
+    level: 1,
+    category: 'minor',
+    role: 'mage',
+    defaultPosition: 'back',
+    coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.25, magicDefense: 1.2, speed: 1 },
+    baseHp: 300,
+    skills: [{ skillId: mageBasic, weight: 100, selectionMode: 'weighted' }]
+  });
+  addMonster({
+    id: config.ids.eliteWarrior,
+    name: config.names.eliteWarrior,
+    level: 1,
+    category: 'elite',
+    role: 'warrior',
+    defaultPosition: 'front',
+    coefficients: { physicalAttack: 1.5, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 },
+    baseHp: 900,
+    skills: [
+      { skillId: warriorBasic, weight: 67, selectionMode: 'weighted' },
+      { skillId: warriorPreview, weight: 33, selectionMode: 'weighted' }
+    ]
+  });
+  addMonster({
+    id: config.ids.eliteShooter,
+    name: config.names.eliteShooter,
+    level: 1,
+    category: 'elite',
+    role: 'shooter',
+    defaultPosition: 'back',
+    coefficients: { physicalAttack: 1.875, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 },
+    baseHp: 450,
+    skills: [
+      { skillId: shooterBasic, weight: 75, selectionMode: 'weighted' },
+      { skillId: shooterArea, weight: 25, selectionMode: 'weighted' }
+    ]
+  });
+  addMonster({
+    id: config.ids.eliteMage,
+    name: config.names.eliteMage,
+    level: 1,
+    category: 'elite',
+    role: 'mage',
+    defaultPosition: 'back',
+    coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.875, magicDefense: 1.2, speed: 1 },
+    baseHp: 450,
+    skills: [
+      { skillId: mageBasic, weight: 75, selectionMode: 'weighted' },
+      { skillId: mageGrowth, weight: 25, selectionMode: 'forced_opening' }
+    ]
+  });
+}
+
+addThemeEnemies({
+  prefix: 'FORGE',
+  ids: {
+    gruntWarrior: 'FORGE_GRUNT_WARRIOR', gruntShooter: 'FORGE_GRUNT_SHOOTER', gruntMage: 'FORGE_GRUNT_MAGE',
+    eliteWarrior: 'FORGE_ELITE_WARRIOR', eliteShooter: 'FORGE_ELITE_SHOOTER', eliteMage: 'FORGE_ELITE_MAGE'
+  },
+  names: {
+    gruntWarrior: '熔壳卫兵', gruntShooter: '灰羽弩手', gruntMage: '熔纹术士',
+    eliteWarrior: '赤铠督战者', eliteShooter: '焦羽箭卫', eliteMage: '炽印咏火者'
+  },
+  skills: {
+    warriorBasic: '熔岩斩', shooterBasic: '灰烬箭', mageBasic: '熔火弹',
+    warriorPreview: '裂地怒斩', shooterArea: '焦羽箭雨', mageGrowth: '魔力强化'
+  }
+});
+
+addThemeEnemies({
+  prefix: 'RANGE',
+  ids: {
+    gruntWarrior: 'RANGE_GRUNT_WARRIOR', gruntShooter: 'RANGE_GRUNT_SHOOTER', gruntMage: 'RANGE_GRUNT_MAGE',
+    eliteWarrior: 'RANGE_ELITE_WARRIOR', eliteShooter: 'RANGE_ELITE_SHOOTER', eliteMage: 'RANGE_ELITE_MAGE'
+  },
+  names: {
+    gruntWarrior: '猎场盾卫', gruntShooter: '风羽弩手', gruntMage: '风痕术士',
+    eliteWarrior: '猎场监军', eliteShooter: '裂风箭卫', eliteMage: '风眼祭司'
+  },
+  skills: {
+    warriorBasic: '猎场重击', shooterBasic: '风羽箭', mageBasic: '风刃术',
+    warriorPreview: '破风强袭', shooterArea: '裂风箭雨', mageGrowth: '风力增幅'
+  }
+});
+
+addThemeEnemies({
+  prefix: 'MAGE',
+  ids: {
+    gruntWarrior: 'MAGE_GRUNT_WARRIOR', gruntShooter: 'MAGE_GRUNT_SHOOTER', gruntMage: 'MAGE_GRUNT_MAGE',
+    eliteWarrior: 'MAGE_ELITE_WARRIOR', eliteShooter: 'MAGE_ELITE_SHOOTER', eliteMage: 'MAGE_ELITE_MAGE'
+  },
+  names: {
+    gruntWarrior: '法塔魔像', gruntShooter: '秘法射手', gruntMage: '炽印术士',
+    eliteWarrior: '符文守卫', eliteShooter: '晶矢使徒', eliteMage: '炽印咏法者'
+  },
+  skills: {
+    warriorBasic: '符文重击', shooterBasic: '晶矢', mageBasic: '炽焰弹',
+    warriorPreview: '巨像震击', shooterArea: '晶矢散射', mageGrowth: '魔力强化'
+  }
+});
+
+const forgeLavaSweep = addSkill({
+  id: 'FORGE_BOSS_BREAK_CHARGE', tier: 'Boss技能', name: '熔岩横扫', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: { power: 60, damageType: 'physical', targetRule: 'enemy_all', targetPreference: 'front' },
+  description: '对当前玩家前排全体分别造成60物理威力伤害；没有前排时改为攻击当前后排。'
+});
+const forgeFrontSmash = addSkill({
+  id: 'FORGE_BOSS_HEAVY_SLASH', tier: 'Boss技能', name: '前排重击', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: { power: 100, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对当前玩家前排单体造成100物理威力伤害；没有前排时改为攻击当前后排。'
+});
+const forgeHeatBurst = addSkill({
+  id: 'FORGE_BOSS_MOUNTAIN_CLEAVE', tier: 'Boss技能', name: '高温爆发', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: { power: 200, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对锁定目标行的当前占用者造成200物理威力伤害；换宠后由同一行的新单位承受，该行为空时落空。'
+});
+const forgeMountainCharge = addSkill({
+  id: 'FORGE_BOSS_MOUNTAIN_CHARGE', tier: 'Boss技能', name: '熔核蓄力', behaviorCategory: '预告攻击', cooldown: 0, isBasicAttack: false,
+  execution: {
+    damageType: 'none', targetRule: 'self', targetPreference: 'front',
+    telegraph: { enabled: true, followupSkillId: forgeHeatBurst, targetSelection: 'random_legal_single_target', lockMode: 'position', invalidTargetResult: 'whiff' },
+    specialEffects: ['apply_exposed']
+  },
+  description: '本次行动进入蓄力并暴露破绽，锁定当前玩家前排目标行；下一次合法行动强制使用【高温爆发】，换宠不会解除锁定。'
+});
+
+addMonster({
+  id: 'FORGE_BOSS_WARRIOR', name: '熔核守卫', level: 1, category: 'boss', role: 'warrior', defaultPosition: 'front',
+  coefficients: { physicalAttack: 2.5, physicalDefense: 1, magicAttack: 2.5, magicDefense: 1, speed: 0.85 }, baseHp: 3000,
+  skills: [
+    { skillId: forgeLavaSweep, weight: 0, selectionMode: 'weighted' },
+    { skillId: forgeFrontSmash, weight: 50, selectionMode: 'weighted' },
+    { skillId: forgeMountainCharge, weight: 25, selectionMode: 'weighted' },
+    { skillId: forgeHeatBurst, weight: 0, selectionMode: 'forced_followup' }
+  ]
+});
+
+const rangeVolley = addSkill({
+  id: 'RANGE_BOSS_VOLLEY', tier: 'Boss技能', name: '雷鸣箭雨', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: { power: 35, damageType: 'physical', targetRule: 'enemy_all', targetPreference: 'back' },
+  description: '对当前玩家后排全体分别造成35物理威力伤害；没有后排时改为攻击当前前排。'
+});
+const rangePiercing = addSkill({
+  id: 'RANGE_BOSS_PIERCING_RAIN', tier: 'Boss技能', name: '狙击', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: {
+    power: 60,
+    damageType: 'physical',
+    targetRule: 'enemy_single',
+    targetPreference: 'back',
+    targetSelection: 'controlled_random_no_immediate_repeat'
+  },
+  description: '随机攻击一名当前玩家后排，造成60物理威力伤害；存在其他合法后排目标时，不会连续攻击同一目标；没有后排时改为攻击当前前排。'
+});
+const rangeSkyfall = addSkill({
+  id: 'RANGE_BOSS_SKYFALL', tier: 'Boss技能', name: '雷霆贯射', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: { power: 100, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'back' },
+  description: '对锁定目标造成100物理威力伤害；若目标换宠则命中同一行的新单位，该行为空时落空且不重新选择。'
+});
+const rangeCharge = addSkill({
+  id: 'RANGE_BOSS_ARROWSTORM_CHARGE', tier: 'Boss技能', name: '锁定蓄势', behaviorCategory: '预告攻击', cooldown: 0, isBasicAttack: false,
+  execution: {
+    damageType: 'none', targetRule: 'self', targetPreference: 'back',
+    telegraph: { enabled: true, followupSkillId: rangeSkyfall, targetSelection: 'random_legal_single_target', lockMode: 'unit', invalidTargetResult: 'whiff' }
+  },
+  description: '随机锁定一名当前玩家后排；没有后排时锁定当前前排。下一次合法行动强制使用【雷霆贯射】。'
+});
+
+addMonster({
+  id: 'RANGE_BOSS_SHOOTER', name: '灰羽猎王', level: 1, category: 'boss', role: 'shooter', defaultPosition: 'back',
+  coefficients: { physicalAttack: 3, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 }, baseHp: 2200,
+  skills: [
+    { skillId: rangeVolley, weight: 35, selectionMode: 'weighted' },
+    { skillId: rangePiercing, weight: 35, selectionMode: 'weighted' },
+    { skillId: rangeCharge, weight: 30, selectionMode: 'weighted' },
+    { skillId: rangeSkyfall, weight: 0, selectionMode: 'forced_followup' }
+  ]
+});
+
+const mageBolt = addSkill({
+  id: 'MAGE_BOSS_ARCANE_BOLT', tier: 'Boss技能', name: '魔力脉冲', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: true,
+  execution: { power: 80, damageType: 'magical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对当前玩家前排单体造成当前威力的魔法伤害；没有前排时改为攻击当前后排。'
+});
+const mageExpansion = addSkill({
+  id: 'MAGE_BOSS_MANA_EXPANSION', tier: 'Boss技能', name: '魔力增幅', behaviorCategory: '强化', cooldown: 0, isBasicAttack: false,
+  execution: {
+    damageType: 'none', targetRule: 'self',
+    effects: [{ type: 'increase_runtime_skill_power', targetSkillId: mageBolt, amount: 80 }]
+  },
+  description: '本次行动不造成伤害，使【魔力脉冲】当前威力永久+80，并将魔力积蓄计数归零；不创建状态且没有强化次数上限。'
+});
+
+addMonster({
+  id: 'MAGE_BOSS', name: '炽印法主', level: 1, category: 'boss', role: 'mage', defaultPosition: 'back',
+  coefficients: { physicalAttack: 0, physicalDefense: 1, magicAttack: 2.5, magicDefense: 1, speed: 0.9 }, baseHp: 2200,
+  skills: [
+    { skillId: mageBolt, weight: 100, selectionMode: 'weighted' },
+    { skillId: mageExpansion, weight: 0, selectionMode: 'forced_followup' }
+  ],
+  actionCycle: {
+    counterLabel: '魔力积蓄',
+    countedSkillIds: [mageBolt],
+    threshold: 3,
+    forcedSkillId: mageExpansion
+  }
+});
+
+export const MONSTER_SKILLS = skills;
+export const MONSTERS = monsters;
+
+export const RANDOM_GRUNT_POOL = [
+  'FORGE_GRUNT_WARRIOR', 'FORGE_GRUNT_SHOOTER', 'FORGE_GRUNT_MAGE',
+  'RANGE_GRUNT_WARRIOR', 'RANGE_GRUNT_SHOOTER', 'RANGE_GRUNT_MAGE',
+  'MAGE_GRUNT_WARRIOR', 'MAGE_GRUNT_SHOOTER', 'MAGE_GRUNT_MAGE'
+];
+
+export const RANDOM_ELITE_POOL = [
+  'FORGE_ELITE_WARRIOR', 'FORGE_ELITE_SHOOTER', 'FORGE_ELITE_MAGE',
+  'RANGE_ELITE_WARRIOR', 'RANGE_ELITE_SHOOTER', 'RANGE_ELITE_MAGE',
+  'MAGE_ELITE_WARRIOR', 'MAGE_ELITE_SHOOTER', 'MAGE_ELITE_MAGE'
+];
+
+export const RANDOM_BOSS_POOL = ['FORGE_BOSS_WARRIOR', 'RANGE_BOSS_SHOOTER', 'MAGE_BOSS'];

@@ -1,0 +1,15 @@
+node_modules/
+.npm-cache/
+dist/
+dist-lan/
+*.log
+*.zip
+.codex-test-build-*/
+.codex-boss-loop-test-*.mjs
+
+.DS_Store
+Thumbs.db
+
+.env
+.env.*
+validation-artifacts/
