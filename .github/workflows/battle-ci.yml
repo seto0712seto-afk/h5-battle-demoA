@@ -1,0 +1,54 @@
+﻿name: Battle CI
+
+on:
+  push:
+    branches:
+      - project-main
+  pull_request:
+    branches:
+      - project-main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: battle-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  battle-regression:
+    name: battle-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run rule tests
+        run: npm test
+
+      - name: Build H5 demo
+        run: npm run build
+
+      - name: Run random battle simulation
+        run: npm run simulate:random
+
+      - name: Upload validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: battle-validation-${{ github.run_number }}
+          path: validation-artifacts/**
+          if-no-files-found: ignore
+          retention-days: 14
