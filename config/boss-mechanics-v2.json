@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "2.0.0",
+  "dslVersion": "boss-mechanic-dsl-20260730.1",
+  "attribution": {
+    "directOutcomeMode": "exclusive",
+    "responseMode": "multi_label",
+    "postImpactMode": "weighted",
+    "overlapConfidenceThreshold": 0.20
+  },
+  "bosses": {
+    "FORGE_BOSS_WARRIOR": {
+      "bossId": "FORGE_BOSS_WARRIOR",
+      "configVersion": 2,
+      "mechanics": [
+        {
+          "mechanicId": "high_heat",
+          "displayName": "高温爆发",
+          "mechanicType": "telegraph_attack",
+          "priority": 100,
+          "trigger": { "eventType": "telegraph_start", "skillIds": ["FORGE_BOSS_MOUNTAIN_CHARGE"] },
+          "resolve": { "eventType": "skill_resolve", "skillIds": ["FORGE_BOSS_MOUNTAIN_CLEAVE"] },
+          "window": { "start": "trigger_event", "end": "resolve_event", "responseHorizon": { "type": "until_resolve" } },
+          "baseline": { "type": "matched_non_mechanic_actions", "matching": ["alive_count", "resource_band"] },
+          "targetScope": "locked_target",
+          "validResponses": [
+            { "responseId": "shield_locked_target", "requiredTags": ["shield_target"], "effectivenessMetrics": ["boss_life_damage", "deaths", "replacements"] },
+            { "responseId": "heal_locked_target", "requiredTags": ["heal_target"], "effectivenessMetrics": ["boss_life_damage", "deaths"] },
+            { "responseId": "swap_locked_target", "requiredTags": ["swap_target"], "effectivenessMetrics": ["boss_life_damage", "deaths"] },
+            { "responseId": "burst_kill", "requiredTags": ["prevent_by_boss_kill"], "effectivenessMetrics": ["boss_life_damage"] }
+          ],
+          "incidentalActions": ["generic_attack", "generic_resource_gain"],
+          "invalidResponses": ["position_change_that_does_not_break_lock"],
+          "outcomeMetrics": ["theoretical_damage", "boss_life_damage", "shield_absorb", "deaths", "replacements"],
+          "postImpact": { "rounds": 3, "metrics": ["player_damage_to_boss", "effective_heal", "effective_shield", "deaths", "resource_balance"] }
+        },
+        {
+          "mechanicId": "exposed",
+          "displayName": "熔核破绽",
+          "mechanicType": "vulnerability_window",
+          "priority": 80,
+          "trigger": { "eventType": "skill_resolve", "skillIds": ["FORGE_BOSS_MOUNTAIN_CLEAVE"] },
+          "resolve": { "eventType": "action_start", "sourceSide": "enemy" },
+          "window": { "start": "trigger_event", "end": "next_matching_event", "endSelector": { "eventType": "action_start", "sourceSide": "enemy" }, "responseHorizon": { "type": "until_next_boss_action" } },
+          "baseline": { "type": "matched_non_mechanic_actions", "matching": ["alive_count", "resource_band"] },
+          "targetScope": "boss",
+          "validResponses": [
+            { "responseId": "attack_exposed", "requiredTags": ["generic_attack"], "effectivenessMetrics": ["player_damage_to_boss"] },
+            { "responseId": "high_cost_attack", "requiredTags": ["high_cost_attack"], "effectivenessMetrics": ["player_damage_to_boss"] }
+          ],
+          "incidentalActions": ["generic_resource_gain", "generic_heal", "generic_shield"],
+          "invalidResponses": [],
+          "outcomeMetrics": ["player_damage_to_boss", "resource_spend", "resource_balance"],
+          "postImpact": { "rounds": 3, "metrics": ["player_damage_to_boss", "resource_balance"] }
+        }
+      ]
+    },
+    "RANGE_BOSS_SHOOTER": {
+      "bossId": "RANGE_BOSS_SHOOTER",
+      "configVersion": 2,
+      "mechanics": [
+        {
+          "mechanicId": "hunter_wound",
+          "displayName": "猎伤累积",
+          "mechanicType": "stacking_growth",
+          "priority": 90,
+          "trigger": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_VOLLEY", "RANGE_BOSS_PIERCING_RAIN"] },
+          "resolve": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_SKYFALL"] },
+          "window": { "start": "trigger_event", "end": "resolve_event", "responseHorizon": { "type": "until_resolve" } },
+          "baseline": { "type": "matched_non_mechanic_actions", "matching": ["alive_count", "resource_band"] },
+          "targetScope": "affected_targets",
+          "validResponses": [
+            { "responseId": "swap_wounded_target", "requiredTags": ["generic_swap"], "effectivenessMetrics": ["boss_life_damage", "deaths", "replacements"] },
+            { "responseId": "shield_wounded_target", "requiredTags": ["generic_shield"], "effectivenessMetrics": ["boss_life_damage", "deaths"] },
+            { "responseId": "heal_wounded_target", "requiredTags": ["generic_heal"], "effectivenessMetrics": ["boss_life_damage", "deaths"] },
+            { "responseId": "race_damage", "requiredTags": ["generic_attack"], "effectivenessMetrics": ["player_damage_to_boss"] }
+          ],
+          "incidentalActions": ["generic_resource_gain"],
+          "invalidResponses": ["position_change_without_clearing_wound"],
+          "outcomeMetrics": ["theoretical_damage", "boss_life_damage", "shield_absorb", "deaths", "replacements"],
+          "postImpact": { "rounds": 3, "metrics": ["player_damage_to_boss", "effective_heal", "effective_shield", "deaths", "resource_balance"] }
+        },
+        {
+          "mechanicId": "piercing_lock",
+          "displayName": "锁定贯射",
+          "mechanicType": "telegraph_attack",
+          "priority": 100,
+          "trigger": { "eventType": "telegraph_start", "skillIds": ["RANGE_BOSS_ARROWSTORM_CHARGE"] },
+          "resolve": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_SKYFALL"] },
+          "window": { "start": "trigger_event", "end": "resolve_event", "responseHorizon": { "type": "until_resolve" } },
+          "baseline": { "type": "matched_non_mechanic_actions", "matching": ["alive_count", "resource_band"] },
+          "targetScope": "locked_target",
+          "validResponses": [
+            { "responseId": "shield_locked_target", "requiredTags": ["shield_target"], "effectivenessMetrics": ["boss_life_damage", "deaths", "replacements"] },
+            { "responseId": "heal_locked_target", "requiredTags": ["heal_target"], "effectivenessMetrics": ["boss_life_damage", "deaths"] },
+            { "responseId": "swap_locked_target", "requiredTags": ["swap_target"], "effectivenessMetrics": ["boss_life_damage", "deaths"] },
+            { "responseId": "burst_kill", "requiredTags": ["prevent_by_boss_kill"], "effectivenessMetrics": ["boss_life_damage"] }
+          ],
+          "incidentalActions": ["generic_attack", "generic_resource_gain"],
+          "invalidResponses": ["position_change_that_does_not_break_lock"],
+          "outcomeMetrics": ["theoretical_damage", "boss_life_damage", "shield_absorb", "deaths", "replacements"],
+          "postImpact": { "rounds": 3, "metrics": ["player_damage_to_boss", "effective_heal", "effective_shield", "deaths", "resource_balance"] }
+        },
+        {
+          "mechanicId": "backline_pressure",
+          "displayName": "后排压迫",
+          "mechanicType": "position_pressure",
+          "priority": 60,
+          "trigger": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_VOLLEY", "RANGE_BOSS_PIERCING_RAIN"] },
+          "resolve": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_VOLLEY", "RANGE_BOSS_PIERCING_RAIN"] },
+          "window": { "start": "trigger_action_start", "end": "next_matching_event", "endSelector": { "eventType": "action_start", "sourceSide": "enemy" }, "responseHorizon": { "type": "until_next_boss_action" } },
+          "baseline": { "type": "matched_non_mechanic_actions", "matching": ["alive_count", "resource_band"] },
+          "targetScope": "affected_targets",
+          "validResponses": [
+            { "responseId": "heal_after_pressure", "requiredTags": ["generic_heal"], "effectivenessMetrics": ["deaths"] },
+            { "responseId": "shield_after_pressure", "requiredTags": ["generic_shield"], "effectivenessMetrics": ["deaths"] },
+            { "responseId": "swap_after_pressure", "requiredTags": ["generic_swap"], "effectivenessMetrics": ["deaths", "replacements"] },
+            { "responseId": "race_damage", "requiredTags": ["generic_attack"], "effectivenessMetrics": ["player_damage_to_boss"] }
+          ],
+          "incidentalActions": ["generic_resource_gain"],
+          "invalidResponses": ["position_change_without_pressure_reduction"],
+          "outcomeMetrics": ["theoretical_damage", "boss_life_damage", "shield_absorb", "deaths", "replacements"],
+          "postImpact": { "rounds": 3, "metrics": ["player_damage_to_boss", "effective_heal", "effective_shield", "deaths", "resource_balance"] }
+        }
+      ]
+    },
+    "MAGE_BOSS": {
+      "bossId": "MAGE_BOSS",
+      "configVersion": 2,
+      "mechanics": [
+        {
+          "mechanicId": "arcane_growth",
+          "displayName": "魔力成长",
+          "mechanicType": "stacking_growth",
+          "priority": 70,
+          "trigger": { "eventType": "skill_resolve", "skillIds": ["MAGE_BOSS_MANA_EXPANSION"] },
+          "resolve": { "eventType": "action_start", "sourceSide": "enemy" },
+          "window": { "start": "trigger_event", "end": "next_matching_event", "endSelector": { "eventType": "action_start", "sourceSide": "enemy" }, "responseHorizon": { "type": "until_next_boss_action" } },
+          "baseline": { "type": "matched_non_mechanic_actions", "matching": ["alive_count", "resource_band"] },
+          "targetScope": "boss",
+          "validResponses": [
+            { "responseId": "race_damage", "requiredTags": ["generic_attack"], "effectivenessMetrics": ["player_damage_to_boss"] },
+            { "responseId": "prepare_healing", "requiredTags": ["generic_heal"], "effectivenessMetrics": ["boss_life_damage", "deaths"] },
+            { "responseId": "prepare_shield", "requiredTags": ["generic_shield"], "effectivenessMetrics": ["boss_life_damage", "deaths"] }
+          ],
+          "incidentalActions": ["generic_resource_gain"],
+          "invalidResponses": [],
+          "outcomeMetrics": ["player_damage_to_boss", "effective_heal", "effective_shield", "resource_balance"],
+          "postImpact": { "rounds": 3, "metrics": ["boss_life_damage", "deaths", "player_damage_to_boss"] }
+        }
+      ]
+    }
+  }
+}

@@ -2,6 +2,7 @@ import { SKILLS, SPIRITS, TEAM_MANA_INITIAL, TEAM_MANA_MAX } from './data';
 import { MONSTERS, MONSTER_SKILLS } from './monsterData';
 import { createMonsterInstance } from './monsterSystem';
 import type { BossData, BossId, BossPreviewSkill, SkillData, SpiritData } from './types';
+import type { MonsterSkillDefinition } from './monsterTypes';
 
 export interface PresetTeam {
   id: string;
@@ -48,19 +49,48 @@ function bossDataFromMonster(monsterId: string): BossData {
     display: {
       displayName: monster.name,
       portraitKey: 'boss-default',
-      shortDescription: `${monster.category === 'boss' ? 'Boss' : monster.category === 'elite' ? '精英怪' : '小怪'} · ${monster.role}`,
       previewSkills: monster.skills
         .map<BossPreviewSkill>((entry) => {
           const skill = MONSTER_SKILLS[entry.skillId];
+          const followupId = skill.execution.telegraph?.followupSkillId;
           return {
             id: skill.id,
             name: skill.name,
             tags: skill.execution.targetRule === 'enemy_all' ? ['aoe'] : skill.execution.damageType === 'none' ? ['status'] : ['single'],
+            behaviorCategory: skill.behaviorCategory,
+            targetDescription: monsterSkillTargetDescription(skill),
+            damageTypeDescription: monsterDamageTypeDescription(skill),
+            power: skill.execution.power,
+            cooldown: skill.cooldown,
+            telegraphFollowupName: followupId ? MONSTER_SKILLS[followupId]?.name ?? followupId : undefined,
             description: skill.description
           };
         })
     }
   };
+}
+
+function monsterSkillTargetDescription(skill: MonsterSkillDefinition) {
+  if (skill.execution.targetRule === 'self') return '自身';
+  const preference = skill.execution.targetPreference;
+  if (skill.execution.targetRule === 'enemy_all') {
+    if (preference === 'front') return '我方当前前排全体';
+    if (preference === 'back') return '我方当前后排全体';
+    return '我方全体';
+  }
+  if (preference === 'front') return '我方当前前排单体';
+  if (preference === 'back') return '我方当前后排单体';
+  return '我方单体';
+}
+
+function monsterDamageTypeDescription(skill: MonsterSkillDefinition) {
+  const labels = {
+    physical: '物理伤害',
+    magical: '魔法伤害',
+    fixed: '固定伤害',
+    none: ''
+  } as const;
+  return labels[skill.execution.damageType ?? 'none'] || undefined;
 }
 
 const bossConfigsById: Record<BossId, BossData> = Object.fromEntries(

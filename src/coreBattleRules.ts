@@ -10,15 +10,46 @@ export interface StatusApplication {
   value?: number;
   duration: number;
   appliedDuringOwnerAction?: boolean;
+  clearOnBench?: boolean;
   sourceId?: string;
 }
 
 export const CORE_STATUS_RULES = {
-  damageAmp: { id: 'damage-amp', name: '爆发', stackable: true, maxStacks: 99 },
-  charge: { id: 'charge', name: '蓄势', stackable: false, maxStacks: 1 },
-  regen: { id: 'regen', name: '回复', stackable: false, maxStacks: 1 },
-  shieldFormation: { id: 'shield-formation', name: '盾阵', stackable: false, maxStacks: 1 },
-  vulnerable: { id: 'vulnerable', name: '易伤', stackable: false, maxStacks: 1 }
+  damageAmp: {
+    id: 'damage-amp',
+    name: '爆发',
+    stackable: true,
+    maxStacks: 99,
+    description: '每层使自身造成的伤害提高 25%，持续至持有者下一次正常行动结束。'
+  },
+  charge: {
+    id: 'charge',
+    name: '蓄势',
+    stackable: false,
+    maxStacks: 1,
+    description: '每次受到敌方攻击且存活时获得 4 层爆发，持续时间按持有者的正常行动次数计算。'
+  },
+  regen: {
+    id: 'regen',
+    name: '回复',
+    stackable: false,
+    maxStacks: 1,
+    description: '行动开始时恢复 10% 最大生命；同名回复只保留一个，持续时间按持有者的正常行动次数计算。'
+  },
+  shieldFormation: {
+    id: 'shield-formation',
+    name: '盾阵',
+    stackable: false,
+    maxStacks: 1,
+    description: '状态存在时，护盾不会在持有者正常行动结束后清除，持续时间按持有者的正常行动次数计算。'
+  },
+  vulnerable: {
+    id: 'vulnerable',
+    name: '易伤',
+    stackable: false,
+    maxStacks: 1,
+    description: '受到的最终伤害提高 50%，持续时间按状态持有者的正常行动次数计算。'
+  }
 } as const;
 
 export const CHARGE_DAMAGE_AMP_STACKS_ON_HIT = 4;
@@ -85,6 +116,7 @@ export function mergeRuntimeStatus(current: RuntimeStatus | undefined, applicati
       value: application.value ?? 0,
       duration: Math.max(0, application.duration),
       skipCurrentOwnerActionEnd: application.appliedDuringOwnerAction ?? false,
+      clearOnBench: application.clearOnBench ?? false,
       sourceId: application.sourceId
     };
   }
@@ -97,6 +129,7 @@ export function mergeRuntimeStatus(current: RuntimeStatus | undefined, applicati
     value: Math.max(current.value, application.value ?? 0),
     duration: Math.max(current.duration, application.duration),
     skipCurrentOwnerActionEnd: current.skipCurrentOwnerActionEnd || (application.appliedDuringOwnerAction ?? false),
+    clearOnBench: current.clearOnBench || (application.clearOnBench ?? false),
     sourceId: application.sourceId ?? current.sourceId
   };
 }
@@ -116,7 +149,7 @@ export function tickOwnerStatuses(statuses: Record<string, RuntimeStatus>) {
 
 export function clearTemporaryStatuses(statuses: Record<string, RuntimeStatus>) {
   Object.keys(statuses).forEach((id) => {
-    if (statuses[id].temporary) delete statuses[id];
+    if (statuses[id].temporary || statuses[id].clearOnBench) delete statuses[id];
   });
 }
 

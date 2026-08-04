@@ -41,8 +41,21 @@ jobs:
       - name: Build H5 demo
         run: npm run build
 
-      - name: Run random battle simulation
-        run: npm run simulate:random
+      - name: Run experience simulation
+        run: npm run simulate:experience
+
+      - name: Run single Boss telemetry smoke
+        run: npm run simulate:boss:paired -- --runs=5 --seed=2026072901
+
+      - name: Publish experience summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f validation-artifacts/experience-summary.md ]; then
+            cat validation-artifacts/experience-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Experience report missing" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload validation artifacts
         if: always()

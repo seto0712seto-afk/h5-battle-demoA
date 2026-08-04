@@ -254,11 +254,6 @@ addThemeEnemies({
   }
 });
 
-const forgeLavaSweep = addSkill({
-  id: 'FORGE_BOSS_BREAK_CHARGE', tier: 'Boss技能', name: '熔岩横扫', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
-  execution: { power: 60, damageType: 'physical', targetRule: 'enemy_all', targetPreference: 'front' },
-  description: '对当前玩家前排全体分别造成60物理威力伤害；没有前排时改为攻击当前后排。'
-});
 const forgeFrontSmash = addSkill({
   id: 'FORGE_BOSS_HEAVY_SLASH', tier: 'Boss技能', name: '前排重击', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
   execution: { power: 100, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'front' },
@@ -266,24 +261,28 @@ const forgeFrontSmash = addSkill({
 });
 const forgeHeatBurst = addSkill({
   id: 'FORGE_BOSS_MOUNTAIN_CLEAVE', tier: 'Boss技能', name: '高温爆发', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
-  execution: { power: 200, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'front' },
-  description: '对锁定目标行的当前占用者造成200物理威力伤害；换宠后由同一行的新单位承受，该行为空时落空。'
+  execution: {
+    power: 200,
+    damageType: 'physical',
+    targetRule: 'enemy_single',
+    targetPreference: 'front',
+    specialEffects: ['apply_exposed']
+  },
+  description: '对锁定目标行的当前占用者造成200物理威力伤害；换宠后由同一行的新单位承受，该行为空时落空。完成全部结算后进入熔核破绽。'
 });
 const forgeMountainCharge = addSkill({
   id: 'FORGE_BOSS_MOUNTAIN_CHARGE', tier: 'Boss技能', name: '熔核蓄力', behaviorCategory: '预告攻击', cooldown: 0, isBasicAttack: false,
   execution: {
     damageType: 'none', targetRule: 'self', targetPreference: 'front',
-    telegraph: { enabled: true, followupSkillId: forgeHeatBurst, targetSelection: 'random_legal_single_target', lockMode: 'position', invalidTargetResult: 'whiff' },
-    specialEffects: ['apply_exposed']
+    telegraph: { enabled: true, followupSkillId: forgeHeatBurst, targetSelection: 'random_legal_single_target', lockMode: 'position', invalidTargetResult: 'whiff' }
   },
-  description: '本次行动进入蓄力并暴露破绽，锁定当前玩家前排目标行；下一次合法行动强制使用【高温爆发】，换宠不会解除锁定。'
+  description: '本次行动进入蓄力，锁定当前玩家前排目标行；下一次合法行动强制使用【高温爆发】，换宠不会解除锁定。'
 });
 
 addMonster({
   id: 'FORGE_BOSS_WARRIOR', name: '熔核守卫', level: 1, category: 'boss', role: 'warrior', defaultPosition: 'front',
   coefficients: { physicalAttack: 2.5, physicalDefense: 1, magicAttack: 2.5, magicDefense: 1, speed: 0.85 }, baseHp: 3000,
   skills: [
-    { skillId: forgeLavaSweep, weight: 0, selectionMode: 'weighted' },
     { skillId: forgeFrontSmash, weight: 50, selectionMode: 'weighted' },
     { skillId: forgeMountainCharge, weight: 25, selectionMode: 'weighted' },
     { skillId: forgeHeatBurst, weight: 0, selectionMode: 'forced_followup' }
@@ -292,8 +291,11 @@ addMonster({
 
 const rangeVolley = addSkill({
   id: 'RANGE_BOSS_VOLLEY', tier: 'Boss技能', name: '雷鸣箭雨', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
-  execution: { power: 35, damageType: 'physical', targetRule: 'enemy_all', targetPreference: 'back' },
-  description: '对当前玩家后排全体分别造成35物理威力伤害；没有后排时改为攻击当前前排。'
+  execution: {
+    power: 35, damageType: 'physical', targetRule: 'enemy_all', targetPreference: 'back',
+    effects: [{ type: 'apply_status', statusId: 'hunter-wound', name: '猎伤', temporary: false, clearOnBench: true, stackable: true, maxStacks: 4, stacks: 1 }]
+  },
+  description: '对当前玩家后排全体分别造成35物理威力伤害；没有后排时改为攻击当前前排。命中且目标存活时施加1层【猎伤】。'
 });
 const rangePiercing = addSkill({
   id: 'RANGE_BOSS_PIERCING_RAIN', tier: 'Boss技能', name: '狙击', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
@@ -302,14 +304,21 @@ const rangePiercing = addSkill({
     damageType: 'physical',
     targetRule: 'enemy_single',
     targetPreference: 'back',
-    targetSelection: 'controlled_random_no_immediate_repeat'
+    targetSelection: 'controlled_random_no_immediate_repeat',
+    effects: [{ type: 'apply_status', statusId: 'hunter-wound', name: '猎伤', temporary: false, clearOnBench: true, stackable: true, maxStacks: 4, stacks: 1 }]
   },
-  description: '随机攻击一名当前玩家后排，造成60物理威力伤害；存在其他合法后排目标时，不会连续攻击同一目标；没有后排时改为攻击当前前排。'
+  description: '随机攻击一名当前玩家后排，造成60物理威力伤害并在目标存活时施加1层【猎伤】；存在其他合法后排目标时，不会连续攻击同一目标；没有后排时改为攻击当前前排。'
 });
 const rangeSkyfall = addSkill({
   id: 'RANGE_BOSS_SKYFALL', tier: 'Boss技能', name: '雷霆贯射', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
-  execution: { power: 100, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'back' },
-  description: '对锁定目标造成100物理威力伤害；若目标换宠则命中同一行的新单位，该行为空时落空且不重新选择。'
+  execution: {
+    power: 100, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'back',
+    targetStatusDamageInteraction: {
+      statusId: 'hunter-wound',
+      finalDamageMultiplierPerStack: 0.4
+    }
+  },
+  description: '对锁定目标造成100物理威力伤害；目标每层【猎伤】使本次最终伤害提高40%，贯射后不消耗猎伤。若目标换宠则命中同一行的新单位，该行为空时落空且不重新选择。'
 });
 const rangeCharge = addSkill({
   id: 'RANGE_BOSS_ARROWSTORM_CHARGE', tier: 'Boss技能', name: '锁定蓄势', behaviorCategory: '预告攻击', cooldown: 0, isBasicAttack: false,
@@ -333,16 +342,19 @@ addMonster({
 
 const mageBolt = addSkill({
   id: 'MAGE_BOSS_ARCANE_BOLT', tier: 'Boss技能', name: '魔力脉冲', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: true,
-  execution: { power: 80, damageType: 'magical', targetRule: 'enemy_single', targetPreference: 'front' },
+  execution: { power: 80, damageType: 'magical', targetRule: 'enemy_single', targetPreference: 'front', consumeTemporaryPowerAfterUse: true },
   description: '对当前玩家前排单体造成当前威力的魔法伤害；没有前排时改为攻击当前后排。'
 });
 const mageExpansion = addSkill({
   id: 'MAGE_BOSS_MANA_EXPANSION', tier: 'Boss技能', name: '魔力增幅', behaviorCategory: '强化', cooldown: 0, isBasicAttack: false,
   execution: {
     damageType: 'none', targetRule: 'self',
-    effects: [{ type: 'increase_runtime_skill_power', targetSkillId: mageBolt, amount: 80 }]
+    effects: [
+      { type: 'increase_runtime_skill_power', targetSkillId: mageBolt, amount: 40 },
+      { type: 'set_runtime_skill_temporary_power', targetSkillId: mageBolt, amount: 80 }
+    ]
   },
-  description: '本次行动不造成伤害，使【魔力脉冲】当前威力永久+80，并将魔力积蓄计数归零；不创建状态且没有强化次数上限。'
+  description: '本次行动不造成伤害，使【魔力脉冲】永久威力+40，并获得下一次脉冲临时威力+80；玩家每次攻击命中使临时威力降低10，下一次脉冲结算后清除剩余临时威力。'
 });
 
 addMonster({
@@ -357,7 +369,8 @@ addMonster({
     countedSkillIds: [mageBolt],
     threshold: 3,
     forcedSkillId: mageExpansion
-  }
+  },
+  temporaryPowerResponse: { targetSkillId: mageBolt, reductionPerPlayerAttack: 10 }
 });
 
 export const MONSTER_SKILLS = skills;

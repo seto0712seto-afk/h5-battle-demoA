@@ -1,0 +1,10 @@
+{
+  "dominantSkillShare": 0.65,
+  "rareSkillShare": 0.05,
+  "rareSkillMinOwnerActions": 50,
+  "energyOverflowRate": 0.15,
+  "averageRoundsDelta": 1,
+  "clearRateDelta": 0.08,
+  "bossCoreMechanicSeenRate": 0.7
+}
+

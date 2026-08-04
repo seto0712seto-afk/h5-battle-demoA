@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "defaults": {
+    "longTailRound": 21,
+    "highCostThreshold": 3,
+    "postImpactRounds": 3,
+    "healthyWinRateMin": 0.7,
+    "healthyWinRateMax": 0.9,
+    "healthyMedianRoundMin": 9,
+    "healthyMedianRoundMax": 14,
+    "longTailRateRisk": 0.05,
+    "decisionShift": 0.1,
+    "aiInfluenceThreshold": 0.05,
+    "minimumCohortSamples": 30
+  },
+  "bosses": {
+    "FORGE_BOSS_WARRIOR": {
+      "bossId": "FORGE_BOSS_WARRIOR",
+      "bossName": "熔核守卫",
+      "mechanics": [
+        {
+          "mechanicId": "high_heat",
+          "displayName": "高温爆发",
+          "type": "telegraph_attack",
+          "startEvent": { "eventType": "telegraph_start", "skillIds": ["FORGE_BOSS_MOUNTAIN_CHARGE"] },
+          "resolveEvent": { "eventType": "skill_resolve", "skillIds": ["FORGE_BOSS_MOUNTAIN_CLEAVE"] },
+          "endEvent": { "eventType": "skill_resolve", "skillIds": ["FORGE_BOSS_MOUNTAIN_CLEAVE"] },
+          "targetScope": "locked_target",
+          "responseTags": ["heal_target", "shield_target", "swap_target", "burst_kill"],
+          "outcomeMetrics": ["life_damage", "shield_absorb", "kill", "replacement", "mechanic_prevented"],
+          "postImpactRounds": 3
+        },
+        {
+          "mechanicId": "exposed",
+          "displayName": "熔核破绽",
+          "type": "vulnerability_window",
+          "startEvent": { "eventType": "skill_resolve", "skillIds": ["FORGE_BOSS_MOUNTAIN_CLEAVE"] },
+          "resolveEvent": { "eventType": "skill_resolve", "skillIds": ["FORGE_BOSS_MOUNTAIN_CLEAVE"] },
+          "endEvent": { "eventType": "action_start", "sourceSide": "enemy" },
+          "targetScope": "boss",
+          "responseTags": ["attack", "high_cost_attack", "resource_spend"],
+          "outcomeMetrics": ["boss_damage", "window_kill", "resource_delta"],
+          "postImpactRounds": 3
+        }
+      ],
+      "existingAbResults": []
+    },
+    "RANGE_BOSS_SHOOTER": {
+      "bossId": "RANGE_BOSS_SHOOTER",
+      "bossName": "灰羽猎王",
+      "mechanics": [
+        {
+          "mechanicId": "piercing_lock",
+          "displayName": "锁定贯射",
+          "type": "telegraph_attack",
+          "startEvent": { "eventType": "telegraph_start", "skillIds": ["RANGE_BOSS_ARROWSTORM_CHARGE"] },
+          "resolveEvent": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_SKYFALL"] },
+          "endEvent": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_SKYFALL"] },
+          "targetScope": "locked_target",
+          "responseTags": ["heal_target", "shield_target", "swap_target", "burst_kill"],
+          "outcomeMetrics": ["life_damage", "shield_absorb", "kill", "replacement", "mechanic_prevented"],
+          "postImpactRounds": 3
+        },
+        {
+          "mechanicId": "backline_pressure",
+          "displayName": "后排压迫",
+          "type": "position_pressure",
+          "startEvent": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_VOLLEY", "RANGE_BOSS_PIERCING_RAIN"] },
+          "resolveEvent": { "eventType": "skill_resolve", "skillIds": ["RANGE_BOSS_VOLLEY", "RANGE_BOSS_PIERCING_RAIN"] },
+          "endEvent": { "eventType": "action_start", "sourceSide": "enemy" },
+          "includeTriggerAction": true,
+          "targetScope": "affected_targets",
+          "responseTags": ["heal", "shield", "swap", "position_change", "attack"],
+          "outcomeMetrics": ["life_damage", "kill", "boss_damage", "replacement"],
+          "postImpactRounds": 3
+        }
+      ],
+      "existingAbResults": ["RANGE-CONTROL", "RANGE-A", "RANGE-B"]
+    },
+    "MAGE_BOSS": {
+      "bossId": "MAGE_BOSS",
+      "bossName": "炽印法主",
+      "mechanics": [
+        {
+          "mechanicId": "arcane_growth",
+          "displayName": "魔力成长",
+          "type": "stacking_growth",
+          "startEvent": { "eventType": "skill_resolve", "skillIds": ["MAGE_BOSS_MANA_EXPANSION"] },
+          "resolveEvent": { "eventType": "skill_resolve", "skillIds": ["MAGE_BOSS_MANA_EXPANSION"] },
+          "endEvent": { "eventType": "action_start", "sourceSide": "enemy" },
+          "targetScope": "boss",
+          "responseTags": ["attack", "high_cost_attack", "heal", "shield", "resource_spend"],
+          "outcomeMetrics": ["boss_damage", "life_damage", "kill", "resource_delta"],
+          "postImpactRounds": 3
+        }
+      ],
+      "existingAbResults": []
+    }
+  }
+}

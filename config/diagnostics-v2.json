@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "2.0.0",
+  "diagnosticsVersion": "combat-diagnostics-20260730.1",
+  "longTailRound": 21,
+  "baselineRounds": 5,
+  "slidingWindows": [3, 5],
+  "changePoints": [
+    { "id": "output_collapse", "displayName": "输出崩塌", "metric": "player_damage_to_boss", "condition": { "relativeToBaseline": { "operator": "<=", "value": 0.55 } }, "persistenceWindows": 2 },
+    { "id": "defense_takeover", "displayName": "防守接管", "metric": "defense_share", "condition": { "absoluteDelta": { "operator": ">=", "value": 0.15 } }, "persistenceWindows": 2 },
+    { "id": "boss_hp_stall", "displayName": "Boss生命下降停滞", "metric": "boss_hp_loss_rate", "condition": { "relativeToBaseline": { "operator": "<=", "value": 0.40 } }, "persistenceWindows": 2 },
+    { "id": "healing_surge", "displayName": "治疗上升", "metric": "effective_heal", "condition": { "relativeToBaseline": { "operator": ">=", "value": 1.50 }, "absoluteFloor": 1 }, "persistenceWindows": 2 },
+    { "id": "shield_surge", "displayName": "护盾上升", "metric": "effective_shield", "condition": { "relativeToBaseline": { "operator": ">=", "value": 1.50 }, "absoluteFloor": 1 }, "persistenceWindows": 2 },
+    { "id": "resource_contraction", "displayName": "资源收缩", "metric": "resource_balance", "condition": { "absoluteDelta": { "operator": "<=", "value": -1.00 } }, "persistenceWindows": 2 }
+  ],
+  "roleLossRules": [
+    { "id": "major_damage_loss", "displayName": "主要输出功能损失", "metric": "aliveDamageWeight", "dropFromStart": 0.40 },
+    { "id": "healing_core_loss", "displayName": "恢复功能核心损失", "metric": "aliveHealingWeight", "dropFromStart": 0.50 },
+    { "id": "protection_core_loss", "displayName": "防护功能核心损失", "metric": "aliveProtectionWeight", "dropFromStart": 0.50 },
+    { "id": "resource_core_loss", "displayName": "回能功能核心损失", "metric": "aliveResourceWeight", "dropFromStart": 0.50 }
+  ],
+  "repeatThreshold": 0.45,
+  "lowResourceThreshold": 2,
+  "overlapConfidenceThreshold": 0.20,
+  "actionRules": [
+    { "issue": "long_tail", "formalChange": { "descriptiveSample": 1000, "sameSeedComparison": true, "rootCauseConfidence": "high", "noMajorContradiction": true } },
+    { "issue": "strength", "formalChange": { "descriptiveSample": 1000, "sameSeedComparison": true, "rootCauseConfidence": "high", "noMajorContradiction": true } },
+    { "issue": "mechanic", "formalChange": { "descriptiveSample": 1000, "sameSeedComparison": true, "rootCauseConfidence": "high", "noMajorContradiction": true } }
+  ]
+}

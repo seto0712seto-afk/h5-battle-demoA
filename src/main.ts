@@ -1,4 +1,5 @@
 import './styles.css';
+import { reportBattleDesignIssues } from './battleDesign';
 import { battleSystemConfig, battleSystemConfigWithBoss } from './battleSystems';
 import { BattleGame } from './battle';
 import { PreBattleUI, type PreBattleStartPayload } from './prebattle';
@@ -11,6 +12,11 @@ const root = document.querySelector<HTMLDivElement>('#app');
 
 if (!root) {
   throw new Error('App root not found');
+}
+
+if (import.meta.env.DEV) {
+  const config = battleSystemConfig();
+  reportBattleDesignIssues(config.creatureConfig, config.skillConfig);
 }
 
 let activeGame: { stop: () => void } | null = null;

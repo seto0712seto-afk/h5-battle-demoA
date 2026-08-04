@@ -63,7 +63,7 @@ export class StageSelectUI {
       body.append(textEl('strong', '', stage.name));
       body.append(textEl('span', '', stage.carryOverPlayerState ? `${stage.battles.length} 场连续战斗` : '单场 Boss 战'));
       item.append(body);
-      item.append(textEl('span', stage.carryOverPlayerState ? 'stage-badge is-chain' : 'stage-badge', stage.carryOverPlayerState ? '连战' : '单场'));
+      item.append(this.renderStageBadges(stage));
       list.append(item);
     });
 
@@ -77,7 +77,7 @@ export class StageSelectUI {
 
     const head = element('div', 'stage-detail-head');
     const title = element('div', 'stage-detail-title');
-    title.append(textEl('span', stage.carryOverPlayerState ? 'stage-badge is-chain' : 'stage-badge', stage.carryOverPlayerState ? '连战' : '单场'));
+    title.append(this.renderStageBadges(stage));
     title.append(textEl('h2', '', stage.name));
     title.append(textEl('p', '', stage.description));
     head.append(title);
@@ -113,6 +113,7 @@ export class StageSelectUI {
       battles.append(row);
     });
     panel.append(battles);
+    panel.append(this.renderEnemyIntel(stage));
 
     const rule = element('div', 'stage-rule-box');
     if (stage.carryOverPlayerState) {
@@ -126,6 +127,58 @@ export class StageSelectUI {
 
     panel.append(button('开始挑战', 'primary-button full stage-enter-button', () => this.onSelect(stage)));
     return panel;
+  }
+
+  private renderStageBadges(stage: StageConfig) {
+    const badges = element('span', 'stage-badge-group');
+    badges.append(textEl('span', stage.carryOverPlayerState ? 'stage-badge is-chain' : 'stage-badge', stage.carryOverPlayerState ? '连战' : '单场'));
+    if (stage.carryOverPlayerState) {
+      const testingBadge = textEl('span', 'stage-badge is-testing', '测试中');
+      testingBadge.title = '当前为测试内容，规则与数值尚未正式确定';
+      badges.append(testingBadge);
+    }
+    return badges;
+  }
+
+  private renderEnemyIntel(stage: StageConfig) {
+    const section = element('section', 'stage-enemy-intel-section');
+    section.append(sectionTitle('敌方技能情报'));
+    const list = element('div', 'stage-enemy-intel-list');
+    const enemyIds = [...new Set(stage.battles.flatMap((battle) => battle.enemies.map(stageEnemyId)))];
+
+    enemyIds.forEach((enemyId, index) => {
+      const boss = this.config.bossConfigsById?.[enemyId];
+      if (!boss) return;
+      const details = element('details', 'stage-enemy-intel');
+      details.open = enemyIds.length === 1 || index === 0;
+      const summary = element('summary', 'stage-enemy-intel-summary');
+      summary.append(textEl('strong', '', boss.display?.displayName ?? boss.name));
+      summary.append(textEl('span', '', `${boss.display?.previewSkills.length ?? 0} 个技能`));
+      details.append(summary);
+
+      const skills = element('div', 'boss-prebattle-skill-list');
+      boss.display?.previewSkills.forEach((skill) => {
+        const card = element('article', 'boss-prebattle-skill-card');
+        card.append(textEl('strong', '', skill.name));
+        const meta = element('div', 'skill-meta-row');
+        meta.append(textEl('span', 'skill-meta-pill', skill.behaviorCategory));
+        meta.append(textEl('span', 'skill-meta-pill', skill.targetDescription));
+        if (skill.damageTypeDescription) meta.append(textEl('span', 'skill-meta-pill', skill.damageTypeDescription));
+        if (skill.power !== undefined) meta.append(textEl('span', 'skill-meta-pill', `威力 ${skill.power}`));
+        meta.append(textEl('span', 'skill-meta-pill', `CD ${skill.cooldown}`));
+        if (skill.telegraphFollowupName) {
+          meta.append(textEl('span', 'skill-meta-pill is-telegraph', `预告后：${skill.telegraphFollowupName}`));
+        }
+        card.append(meta);
+        card.append(textEl('p', 'skill-description', skill.description));
+        skills.append(card);
+      });
+      details.append(skills);
+      list.append(details);
+    });
+
+    section.append(list);
+    return section;
   }
 
   private selectedStage() {

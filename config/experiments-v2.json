@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "2.0.0",
+  "registryVersion": "combat-experiments-20260731.2",
+  "experiments": {
+    "CURRENT-BASELINE": {
+      "experimentId": "CURRENT-BASELINE",
+      "displayName": "当前正式规则基线",
+      "changeType": "baseline",
+      "changeSummary": "当前仓库正式规则与数值",
+      "rulesetId": "system1-current",
+      "teamPoolId": "ten-spirits-current",
+      "aiPolicyId": "balanced-v3",
+      "seedPlanId": "generic-boss-v2-default",
+      "initialStateId": "single-boss-fresh",
+      "comparability": { "requiredSame": ["rulesetId", "teamPoolId", "aiPolicyId", "seedPlanId", "initialStateId"], "allowDifferent": ["bossConfigHash"] },
+      "pairing": { "mode": "same_seed", "seedPlanId": "generic-boss-v2-default" }
+    },
+    "RANGE-HUNTER-AWARE": {
+      "experimentId": "RANGE-HUNTER-AWARE",
+      "displayName": "灰羽猎王猎伤换宠应对策略",
+      "baseExperimentId": "CURRENT-BASELINE",
+      "changeType": "ai_policy",
+      "changeSummary": "仅当猎伤贯射预计致死且存在可承伤后备时，主动换宠清除猎伤",
+      "rulesetId": "system1-current",
+      "teamPoolId": "ten-spirits-current",
+      "aiPolicyId": "balanced-v4-hunter-aware",
+      "seedPlanId": "generic-boss-v2-default",
+      "initialStateId": "single-boss-fresh",
+      "comparability": { "requiredSame": ["rulesetId", "teamPoolId", "seedPlanId", "initialStateId"], "allowDifferent": ["aiPolicyId"] },
+      "pairing": { "mode": "same_seed", "seedPlanId": "generic-boss-v2-default" }
+    },
+    "RANGE-CONTROL": {
+      "experimentId": "RANGE-CONTROL",
+      "displayName": "灰羽猎王Control",
+      "baseExperimentId": null,
+      "changeType": "control",
+      "changeSummary": "生命2200，现行Control技能威力",
+      "rulesetId": "system1-current",
+      "teamPoolId": "ten-spirits-current",
+      "aiPolicyId": "balanced-v3",
+      "seedPlanId": "range-ab-20260730",
+      "initialStateId": "single-boss-fresh",
+      "comparability": { "requiredSame": ["rulesetId", "teamPoolId", "aiPolicyId", "seedPlanId", "initialStateId"], "allowDifferent": ["bossConfigHash"] },
+      "pairing": { "mode": "same_seed", "seedPlanId": "range-ab-20260730" }
+    },
+    "RANGE-A": {
+      "experimentId": "RANGE-A",
+      "displayName": "灰羽猎王生命调整A",
+      "baseExperimentId": "RANGE-CONTROL",
+      "changeType": "boss_hp",
+      "changeSummary": "Boss生命2200调整为2100",
+      "rulesetId": "system1-current",
+      "teamPoolId": "ten-spirits-current",
+      "aiPolicyId": "balanced-v3",
+      "seedPlanId": "range-ab-20260730",
+      "initialStateId": "single-boss-fresh",
+      "comparability": { "requiredSame": ["rulesetId", "teamPoolId", "aiPolicyId", "seedPlanId", "initialStateId"], "allowDifferent": ["bossConfigHash"] },
+      "pairing": { "mode": "same_seed", "seedPlanId": "range-ab-20260730" }
+    },
+    "RANGE-B": {
+      "experimentId": "RANGE-B",
+      "displayName": "灰羽猎王压力调整B",
+      "baseExperimentId": "RANGE-CONTROL",
+      "changeType": "boss_hp_and_skill_power",
+      "changeSummary": "生命调整为2100，狙击与贯射威力提高",
+      "rulesetId": "system1-current",
+      "teamPoolId": "ten-spirits-current",
+      "aiPolicyId": "balanced-v3",
+      "seedPlanId": "range-ab-20260730",
+      "initialStateId": "single-boss-fresh",
+      "comparability": { "requiredSame": ["rulesetId", "teamPoolId", "aiPolicyId", "seedPlanId", "initialStateId"], "allowDifferent": ["bossConfigHash"] },
+      "pairing": { "mode": "same_seed", "seedPlanId": "range-ab-20260730" }
+    }
+  }
+}

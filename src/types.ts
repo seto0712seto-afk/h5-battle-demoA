@@ -10,6 +10,7 @@ export type EnemyBattlePosition = 'front' | 'back_1' | 'back_2';
 export type BossPreviewSkillTag = 'single' | 'aoe' | 'status';
 export type ManaGainSource = 'attack_on_hit' | 'hybrid_attack_charge' | 'charge_only' | 'kill_reward' | 'other';
 export type SkillEnhanceCheckTiming = 'confirmation';
+export type BattleBehavior = 'attack' | 'protect' | 'recover' | 'energy';
 
 export type SkillEnhanceCondition =
   | { type: 'team_mana_at_least'; value: number }
@@ -66,7 +67,8 @@ export interface UnitStats {
 export interface SpiritData extends UnitStats {
   id: string;
   name: string;
-  role: string;
+  primaryRole: BattleBehavior;
+  secondaryRole?: BattleBehavior;
   skillIds: string[];
   accent: string;
   defaultPosition: Row;
@@ -78,6 +80,8 @@ export interface SpiritData extends UnitStats {
 export interface SkillData {
   id: string;
   name: string;
+  primaryBehavior: BattleBehavior;
+  secondaryBehavior?: BattleBehavior;
   kind: SkillKind;
   damageType: DamageType;
   target: SkillTarget;
@@ -143,6 +147,7 @@ export interface RuntimeStatus {
   value: number;
   duration: number;
   skipCurrentOwnerActionEnd: boolean;
+  clearOnBench?: boolean;
   sourceId?: string;
 }
 
@@ -150,6 +155,12 @@ export interface BossPreviewSkill {
   id: string;
   name: string;
   tags: BossPreviewSkillTag[];
+  behaviorCategory: string;
+  targetDescription: string;
+  damageTypeDescription?: string;
+  power?: number;
+  cooldown: number;
+  telegraphFollowupName?: string;
   description: string;
 }
 

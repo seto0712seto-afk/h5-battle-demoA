@@ -29,7 +29,7 @@ const SINGLE_BOSS_STAGES: StageConfig[] = [
   {
     id: BOSS_CHALLENGE_FORGE,
     name: '熔核守卫挑战',
-    description: '单场挑战熔核守卫，验证前排群压、前排重击与锁定位置爆发。',
+    description: '单场挑战熔核守卫，验证前排重击与锁定位置爆发。',
     type: 'fixed',
     carryOverPlayerState: false,
     battles: [battle(BOSS_CHALLENGE_FORGE, 1, [enemy('FORGE_BOSS_WARRIOR', 'front')])]

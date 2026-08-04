@@ -6,6 +6,7 @@ import {
   formatPercent,
   hpPercent
 } from './formulas';
+import { skillDescriptionWithStatusDetails, statusDescription } from './skillPresentation';
 import type { BattleFxEvent, BattleState, Row, RuntimeSpirit, SkillData } from './types';
 
 const PLAYER_POSITIONS: Array<{ label: string; slotIndex: number; row: Row }> = [
@@ -692,28 +693,33 @@ export class BattleUI {
 
   private renderGrowthRecords(runtime: RuntimeSpirit) {
     const wrap = element('div', 'growth-row');
-    const growths: string[] = [];
-    if (runtime.physicalAttackBonus > 0) growths.push(`物攻 +${formatPercent(runtime.physicalAttackBonus)}`);
-    if (runtime.magicAttackBonus > 0) growths.push(`魔攻 +${formatPercent(runtime.magicAttackBonus)}`);
-    if (runtime.nextSkillPowerBonus > 0) growths.push(`下次威力 +${runtime.nextSkillPowerBonus}`);
-    if (runtime.shieldNextBossAction > 0) growths.push(`护盾 ${runtime.shieldNextBossAction}`);
-    if (runtime.damageAmpStacks > 0) growths.push(`爆发 ${runtime.damageAmpStacks}`);
-    if (runtime.chargeTurns > 0 || runtime.freshChargeTurns > 0) growths.push('蓄势');
-    if (runtime.regenTurns > 0 || runtime.freshRegenTurns > 0) growths.push(`回复 ${Math.max(runtime.regenTurns, runtime.freshRegenTurns)}`);
-    if (runtime.shieldValue > 0) growths.push(`护盾 ${runtime.shieldValue}`);
-    if (runtime.statuses['shield-formation']) growths.push(`盾阵 ${runtime.statuses['shield-formation'].duration}`);
+    const growths: Array<{ label: string; detail?: string }> = [];
+    if (runtime.physicalAttackBonus > 0) growths.push({ label: `物攻 +${formatPercent(runtime.physicalAttackBonus)}`, detail: '当前物理攻击强化。' });
+    if (runtime.magicAttackBonus > 0) growths.push({ label: `魔攻 +${formatPercent(runtime.magicAttackBonus)}`, detail: '当前魔法攻击强化。' });
+    if (runtime.nextSkillPowerBonus > 0) growths.push({ label: `下次威力 +${runtime.nextSkillPowerBonus}`, detail: '下一次具有威力的技能获得该数值加成。' });
+    if (runtime.shieldNextBossAction > 0) growths.push({ label: `护盾 ${runtime.shieldNextBossAction}`, detail: '用于抵挡下一次 Boss 行动造成的伤害。' });
+    if (runtime.damageAmpStacks > 0) growths.push({ label: `爆发 ${runtime.damageAmpStacks}`, detail: statusDescription('damage-amp') });
+    if (runtime.chargeTurns > 0 || runtime.freshChargeTurns > 0) growths.push({ label: '蓄势', detail: statusDescription('charge') });
+    if (runtime.regenTurns > 0 || runtime.freshRegenTurns > 0) growths.push({ label: `回复 ${Math.max(runtime.regenTurns, runtime.freshRegenTurns)}`, detail: statusDescription('regen') });
+    if (runtime.shieldValue > 0) growths.push({ label: `护盾 ${runtime.shieldValue}`, detail: '优先吸收受到的伤害；没有盾阵时，持有者正常行动结束会清除既有护盾。' });
+    if (runtime.statuses['shield-formation']) growths.push({ label: `盾阵 ${runtime.statuses['shield-formation'].duration}`, detail: statusDescription('shield-formation') });
     Object.entries(runtime.skillPowerGrowth)
       .filter(([, value]) => value > 0)
       .forEach(([skillId, value]) => {
-
-
-        growths.push(`${this.config.skillConfig[skillId]?.name ?? skillId} +${value}`);
+        growths.push({ label: `${this.config.skillConfig[skillId]?.name ?? skillId} +${value}`, detail: '本场战斗中该技能当前威力的永久成长。' });
       });
     if (growths.length === 0) {
       wrap.append(textEl('span', 'growth-chip is-empty', '无成长'));
       return wrap;
     }
-    growths.forEach((growth) => wrap.append(textEl('span', 'growth-chip', growth)));
+    growths.forEach((growth) => {
+      const chip = textEl('span', 'growth-chip', growth.label);
+      if (growth.detail) {
+        chip.title = growth.detail;
+        chip.setAttribute('aria-label', `${growth.label}：${growth.detail}`);
+      }
+      wrap.append(chip);
+    });
     return wrap;
   }
 
@@ -851,7 +857,7 @@ export class BattleUI {
   }
 
   private skillEffectText(skill: SkillData) {
-    return skill.description ?? '';
+    return skillDescriptionWithStatusDetails(skill);
   }
 
   private spiritData(id: string) {

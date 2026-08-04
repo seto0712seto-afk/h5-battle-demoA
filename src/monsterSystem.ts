@@ -55,13 +55,15 @@ export function createMonsterAiRuntime(
     damageIncreaseStacks: 0,
     exposedActive: false,
     runtimeSkillPowers,
+    temporarySkillPowerBonuses: {},
     actionCycleCount: 0,
     lastTargetIdBySkill: {}
   };
 }
 
 export function runtimeMonsterSkillPower(runtime: MonsterAiRuntime, skill: MonsterSkillDefinition) {
-  return runtime.runtimeSkillPowers[skill.id] ?? skill.execution.power ?? 0;
+  const permanentPower = runtime.runtimeSkillPowers[skill.id] ?? skill.execution.power ?? 0;
+  return permanentPower + (runtime.temporarySkillPowerBonuses[skill.id] ?? 0);
 }
 
 export function increaseRuntimeMonsterSkillPower(runtime: MonsterAiRuntime, skillId: string, amount: number) {
@@ -69,6 +71,25 @@ export function increaseRuntimeMonsterSkillPower(runtime: MonsterAiRuntime, skil
   if (typeof current !== 'number') throw new Error('Runtime skill has no power: ' + skillId);
   runtime.runtimeSkillPowers[skillId] = current + amount;
   return { before: current, after: runtime.runtimeSkillPowers[skillId] };
+}
+
+export function setRuntimeMonsterSkillTemporaryPower(runtime: MonsterAiRuntime, skillId: string, amount: number) {
+  const before = runtime.temporarySkillPowerBonuses[skillId] ?? 0;
+  runtime.temporarySkillPowerBonuses[skillId] = Math.max(0, amount);
+  return { before, after: runtime.temporarySkillPowerBonuses[skillId] };
+}
+
+export function reduceRuntimeMonsterSkillTemporaryPower(runtime: MonsterAiRuntime, skillId: string, amount: number) {
+  const before = runtime.temporarySkillPowerBonuses[skillId] ?? 0;
+  const after = Math.max(0, before - Math.max(0, amount));
+  runtime.temporarySkillPowerBonuses[skillId] = after;
+  return { before, after };
+}
+
+export function consumeRuntimeMonsterSkillTemporaryPower(runtime: MonsterAiRuntime, skillId: string) {
+  const before = runtime.temporarySkillPowerBonuses[skillId] ?? 0;
+  runtime.temporarySkillPowerBonuses[skillId] = 0;
+  return { before, after: 0 };
 }
 
 export class SeededBattleRandom {

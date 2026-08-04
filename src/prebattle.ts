@@ -1,4 +1,5 @@
 import type { BattleSystemConfig } from './battleSystems';
+import { skillDescriptionWithStatusDetails } from './skillPresentation';
 import type { BossId, Row, SkillData, SpiritData } from './types';
 type RosterGroup = 'starter' | 'reserve';
 
@@ -198,7 +199,7 @@ export class PreBattleUI {
       const row = element('article', 'prebattle-skill-card');
       row.append(textEl('strong', '', skill.name));
       row.append(renderSkillMeta(skill));
-      row.append(textEl('p', '', skill.description ?? ''));
+      row.append(textEl('p', 'skill-description', skillDescriptionWithStatusDetails(skill)));
       skills.append(row);
     });
     panel.append(skills);

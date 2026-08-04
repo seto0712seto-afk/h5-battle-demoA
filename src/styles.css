@@ -126,6 +126,19 @@ button {
   background:#fff0e8;
   color:#bd4229
 }
+.stage-badge-group {
+  width:fit-content;
+  display:inline-flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-end;
+  gap:5px
+}
+.stage-badge.is-testing {
+  border-color:#e7bd62;
+  background:#fff7d9;
+  color:#8b5b00
+}
 .stage-meta-grid {
   display:grid;
   gap:8px
@@ -266,6 +279,38 @@ button {
   color:#526271;
   font-size:13px;
   font-weight:800
+}
+.stage-enemy-intel-section,.stage-enemy-intel-list {
+  display:grid;
+  gap:8px
+}
+.stage-enemy-intel {
+  overflow:hidden;
+  border:1px solid #d8e2eb;
+  border-radius:8px;
+  background:#fff
+}
+.stage-enemy-intel-summary {
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  cursor:pointer;
+  list-style-position:inside
+}
+.stage-enemy-intel-summary strong {
+  color:#9d321e;
+  font-size:14px
+}
+.stage-enemy-intel-summary span {
+  color:#657280;
+  font-size:12px;
+  font-weight:800
+}
+.stage-enemy-intel .boss-prebattle-skill-list {
+  padding:0 10px 10px
 }
 .stage-rule-box {
   display:grid;
@@ -695,6 +740,9 @@ button {
   font-size:12px;
   line-height:1.45
 }
+.skill-description {
+  line-height:1.55
+}
 .skill-meta-row {
   display:flex;
   flex-wrap:wrap;
@@ -722,6 +770,12 @@ button {
   border-style:dashed;
   border-color:#8ba4ba;
   color:#526b7f
+}
+.skill-meta-pill.is-telegraph {
+  border-color:#e2aa42;
+  background:#fff7df;
+  color:#8a5700;
+  font-weight:900
 }
 .mana-icon-group {
   display:inline-flex;

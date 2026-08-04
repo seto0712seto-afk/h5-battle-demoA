@@ -39,6 +39,16 @@ function activate(game, enemyId = game.getActiveEnemyIds()[0]) {
   return enemyId;
 }
 
+function forcePlayerAction(game, actorId) {
+  game.state.round.actionSlots.forEach((slot) => {
+    if (slot.type === 'spirit' && slot.unitId === actorId) slot.status = 'executing';
+  });
+  game.state.activeUnit = { type: 'spirit', id: actorId };
+  game.state.phase = 'player-action';
+  game.state.actionContext = 'normal';
+  game['beginPlayerAction'](actorId);
+}
+
 test('等级倍率统一计算攻防速与生命，并允许实例属性覆盖', () => {
   const definition = {
     id: 'TEST', name: '测试', level: 1, category: 'minor', role: 'warrior', defaultPosition: 'front', baseHp: 300,
@@ -72,8 +82,9 @@ test('三职业Boss正式模板的权重、威力与强制行动配置一致', (
   const shooter = monsterData.MONSTERS.RANGE_BOSS_SHOOTER;
   const mage = monsterData.MONSTERS.MAGE_BOSS;
   assert.equal(forge.name, '熔核守卫');
-  assert.deepEqual(forge.skills.map((entry) => entry.weight), [0, 50, 25, 0]);
-  assert.deepEqual(forge.skills.map((entry) => monsterData.MONSTER_SKILLS[entry.skillId].execution.power ?? 0), [60, 100, 0, 200]);
+  assert.deepEqual(forge.skills.map((entry) => entry.weight), [50, 25, 0]);
+  assert.deepEqual(forge.skills.map((entry) => monsterData.MONSTER_SKILLS[entry.skillId].execution.power ?? 0), [100, 0, 200]);
+  assert.equal(monsterData.MONSTER_SKILLS.FORGE_BOSS_BREAK_CHARGE, undefined);
   assert.deepEqual(forge.coefficients, {
     physicalAttack: 2.5, physicalDefense: 1, magicAttack: 2.5, magicDefense: 1, speed: 0.85
   });
@@ -219,25 +230,37 @@ test('战士Boss锁定目标行，换入者改变前后排后仍承受高温爆�
   assert.equal(game.getSpirit(oldTarget).hp, game['spiritInfo'](oldTarget).maxHp);
 });
 
-test('战士Boss熔岩横扫只攻击当前前排，无前排时回退当前后排', () => {
-  const game = monsterGame(['FORGE_BOSS_WARRIOR'], 'forge-front-area');
-  activate(game);
-  game.state.slots[0].row = 'front';
-  game.state.slots[1].row = 'back';
-  game.state.slots[2].row = 'back';
-  const [frontId, backIdA, backIdB] = game.state.slots.map((slot) => slot.spiritId);
-  const sweep = monsterData.MONSTER_SKILLS.FORGE_BOSS_BREAK_CHARGE;
-  game['executeMonsterSkill'](sweep, 'weighted');
-  assert.ok(game.getSpirit(frontId).hp < game['spiritInfo'](frontId).maxHp);
-  assert.equal(game.getSpirit(backIdA).hp, game['spiritInfo'](backIdA).maxHp);
-  assert.equal(game.getSpirit(backIdB).hp, game['spiritInfo'](backIdB).maxHp);
+test('熔核破绽只在高温爆发完整结算后施加，并在Boss下次行动开始时移除', () => {
+  const game = monsterGame(['FORGE_BOSS_WARRIOR'], 'forge-exposed-after-heat');
+  const enemyId = activate(game);
+  const runtime = game['enemyAi'][enemyId];
+  const charge = monsterData.MONSTER_SKILLS.FORGE_BOSS_MOUNTAIN_CHARGE;
+  const highHeat = monsterData.MONSTER_SKILLS.FORGE_BOSS_MOUNTAIN_CLEAVE;
 
-  game.getSpirit(frontId).hp = game['spiritInfo'](frontId).maxHp;
-  game.state.slots[0].row = 'back';
-  game['executeMonsterSkill'](sweep, 'weighted');
-  assert.ok(game.getSpirit(frontId).hp < game['spiritInfo'](frontId).maxHp);
-  assert.ok(game.getSpirit(backIdA).hp < game['spiritInfo'](backIdA).maxHp);
-  assert.ok(game.getSpirit(backIdB).hp < game['spiritInfo'](backIdB).maxHp);
+  game['executeMonsterSkill'](charge, 'weighted');
+  assert.equal(runtime.exposedActive, false);
+
+  const pending = { ...runtime.pendingFollowup };
+  let exposedDuringDamage = null;
+  const executeDamage = game['executeMonsterSingleDamage'].bind(game);
+  game['executeMonsterSingleDamage'] = (...args) => {
+    exposedDuringDamage = runtime.exposedActive;
+    return executeDamage(...args);
+  };
+  game['executeMonsterSkill'](
+    highHeat,
+    'forced_followup',
+    pending.lockedTargetId,
+    pending.lockedSlotIndex,
+    pending.lockedRow,
+    pending.lockedOriginSlotIndex,
+    pending.lockedOriginRow
+  );
+
+  assert.equal(exposedDuringDamage, false);
+  assert.equal(runtime.exposedActive, true);
+  game['expireMonsterActionWindows']();
+  assert.equal(runtime.exposedActive, false);
 });
 
 test('射手Boss锁定当前后排单位并预告雷霆贯射', () => {
@@ -458,9 +481,68 @@ test('射手Boss狙击存在其他合法目标时不会连续攻击同一目标'
   assert.equal(game['enemyAi'][enemyId].lastTargetIdBySkill[snipe.id], secondBackId);
 });
 
-test('法师Boss每完成三次魔力脉冲后下一行动只强化并永久增加80威力', () => {
+test('灰羽猎王攻击叠加猎伤，贯射按层增伤且不消耗，换至后备清除', () => {
+  const selected = ['P01', 'P02', 'P04', 'P03'];
+  const game = monsterGame(['RANGE_BOSS_SHOOTER'], 'hunter-wound-stack', selected);
+  const enemyId = activate(game);
+  game['config'].bossConfig.physicalAttack = 1;
+  game.state.slots[0].row = 'back';
+  game.state.slots[1].row = 'front';
+  game.state.slots[2].row = 'front';
+  const targetId = game.state.slots[0].spiritId;
+  const snipe = monsterData.MONSTER_SKILLS.RANGE_BOSS_PIERCING_RAIN;
+  const skyfall = monsterData.MONSTER_SKILLS.RANGE_BOSS_SKYFALL;
+  assert.equal(skyfall.execution.targetStatusDamageInteraction.finalDamageMultiplierPerStack, 0.4);
+  assert.equal(skyfall.execution.targetStatusDamageInteraction.shieldPenetration, undefined);
+  assert.equal(1 + 4 * skyfall.execution.targetStatusDamageInteraction.finalDamageMultiplierPerStack, 2.6);
+
+  for (let count = 1; count <= 5; count += 1) game['executeMonsterSkill'](snipe, 'weighted');
+  assert.equal(game.getSpirit(targetId).statuses['hunter-wound'].stacks, 4);
+  const preview = game.enemySkillDamagePreview(enemyId, skyfall.id, targetId);
+  assert.equal(preview.statusStacks, 4);
+  assert.equal(preview.finalDamageMultiplier, 2.6);
+  assert.equal(preview.shieldPenetration, 0);
+  const enhancedBefore = game.getSpirit(targetId).hp;
+  game['executeMonsterSkill'](skyfall, 'weighted');
+  const enhancedDamage = enhancedBefore - game.getSpirit(targetId).hp;
+  assert.equal(game.getSpirit(targetId).statuses['hunter-wound'].stacks, 4);
+
+  const baseline = monsterGame(['RANGE_BOSS_SHOOTER'], 'hunter-wound-baseline', selected);
+  activate(baseline);
+  baseline['config'].bossConfig.physicalAttack = 1;
+  baseline.state.slots[0].row = 'back';
+  baseline.state.slots[1].row = 'front';
+  baseline.state.slots[2].row = 'front';
+  const baselineTargetId = baseline.state.slots[0].spiritId;
+  const baselineBefore = baseline.getSpirit(baselineTargetId).hp;
+  baseline['executeMonsterSkill'](skyfall, 'weighted');
+  assert.ok(enhancedDamage > baselineBefore - baseline.getSpirit(baselineTargetId).hp);
+
+  forcePlayerAction(game, targetId);
+  assert.equal(game.swapWithBench('P03').ok, true);
+  assert.equal(game.getSpirit(targetId).statuses['hunter-wound'], undefined);
+  assert.equal(game.getSpirit('P03').statuses['hunter-wound'], undefined);
+  assert.equal(game.enemyStatusView(enemyId).statuses.includes('稳定'), true);
+});
+
+test('当前猎伤只提供最终增伤且不穿盾，底层穿透接口仍可独立配置', () => {
+  const game = monsterGame(['RANGE_BOSS_SHOOTER'], 'hunter-wound-config');
+  assert.equal(game['monsterShieldPenetration'](100, 4, undefined), 0);
+  const liveConfig = monsterData.MONSTER_SKILLS.RANGE_BOSS_SKYFALL.execution.targetStatusDamageInteraction.shieldPenetration;
+  assert.equal(liveConfig, undefined);
+  assert.equal(game['monsterShieldPenetration'](100, 4, liveConfig), 0);
+  assert.equal(game['monsterShieldPenetration'](100, 4, {
+    mode: 'percentage', amountPerStack: 0.15, maxValue: 0.5, settlement: 'bypass'
+  }), 50);
+  assert.equal(game['monsterShieldPenetration'](100, 4, {
+    mode: 'flat', amountPerStack: 20, maxValue: 60, settlement: 'bypass'
+  }), 60);
+});
+
+test('法师Boss每完成三次魔力脉冲后获得永久40与临时80威力，玩家攻击每次削减10', () => {
   const game = monsterGame(['MAGE_BOSS'], 'mage-boss-cycle');
   const enemyId = activate(game);
+  game['config'].bossConfig.magicAttack = 1;
   const runtime = game['enemyAi'][enemyId];
   const pulse = monsterData.MONSTER_SKILLS.MAGE_BOSS_ARCANE_BOLT;
   assert.equal(game.enemyCycleView(enemyId).current, 0);
@@ -476,6 +558,18 @@ test('法师Boss每完成三次魔力脉冲后下一行动只强化并永久增�
   assert.equal(forced.source, 'forced_followup');
   game['executeMonsterSkill'](monsterData.MONSTER_SKILLS[forced.skillId], forced.source);
   assert.equal(runtime.actionCycleCount, 0);
-  assert.equal(runtime.runtimeSkillPowers.MAGE_BOSS_ARCANE_BOLT, 160);
+  assert.equal(runtime.runtimeSkillPowers.MAGE_BOSS_ARCANE_BOLT, 120);
+  assert.equal(runtime.temporarySkillPowerBonuses.MAGE_BOSS_ARCANE_BOLT, 80);
+  assert.equal(monsterSystem.runtimeMonsterSkillPower(runtime, pulse), 200);
   assert.deepEqual(game.getEnemy(enemyId).statuses, {});
+
+  forcePlayerAction(game, 'P01');
+  assert.equal(game.useSkill('M01-S1').ok, true);
+  assert.equal(runtime.temporarySkillPowerBonuses.MAGE_BOSS_ARCANE_BOLT, 70);
+  assert.equal(monsterSystem.runtimeMonsterSkillPower(runtime, pulse), 190);
+
+  activate(game, enemyId);
+  game['executeMonsterSkill'](pulse, 'weighted');
+  assert.equal(runtime.temporarySkillPowerBonuses.MAGE_BOSS_ARCANE_BOLT, 0);
+  assert.equal(monsterSystem.runtimeMonsterSkillPower(runtime, pulse), 120);
 });

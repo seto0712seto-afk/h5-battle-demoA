@@ -13,11 +13,21 @@ export type MonsterSkillEffect =
       type: 'apply_status';
       statusId: string;
       name: string;
-      duration: number;
-      value: number;
+      duration?: number;
+      value?: number;
+      temporary?: boolean;
+      clearOnBench?: boolean;
+      stackable?: boolean;
+      maxStacks?: number;
+      stacks?: number;
     }
   | {
       type: 'increase_runtime_skill_power';
+      targetSkillId: string;
+      amount: number;
+    }
+  | {
+      type: 'set_runtime_skill_temporary_power';
       targetSkillId: string;
       amount: number;
     };
@@ -51,6 +61,17 @@ export interface SkillExecutionConfig {
   };
   effects?: MonsterSkillEffect[];
   specialEffects?: MonsterSpecialEffect[];
+  consumeTemporaryPowerAfterUse?: boolean;
+  targetStatusDamageInteraction?: {
+    statusId: string;
+    finalDamageMultiplierPerStack?: number;
+    shieldPenetration?: {
+      mode: 'percentage' | 'flat';
+      amountPerStack: number;
+      maxValue?: number;
+      settlement: 'bypass';
+    };
+  };
 }
 
 export interface MonsterSkillDefinition {
@@ -85,6 +106,10 @@ export interface MonsterDefinition {
     countedSkillIds: string[];
     threshold: number;
     forcedSkillId: string;
+  };
+  temporaryPowerResponse?: {
+    targetSkillId: string;
+    reductionPerPlayerAttack: number;
   };
 }
 
@@ -124,6 +149,7 @@ export interface MonsterAiRuntime {
   damageIncreaseStacks: number;
   exposedActive: boolean;
   runtimeSkillPowers: Record<string, number>;
+  temporarySkillPowerBonuses: Record<string, number>;
   actionCycleCount: number;
   lastTargetIdBySkill: Record<string, string>;
 }

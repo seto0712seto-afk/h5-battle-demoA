@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "combat-diagnostics/boss-mechanics-v2.schema.json",
+  "title": "Boss Mechanic DSL V2",
+  "type": "object",
+  "required": ["schemaVersion", "dslVersion", "attribution", "bosses"],
+  "properties": {
+    "schemaVersion": { "const": "2.0.0" },
+    "dslVersion": { "type": "string" },
+    "attribution": {
+      "type": "object",
+      "required": ["directOutcomeMode", "responseMode", "postImpactMode", "overlapConfidenceThreshold"]
+    },
+    "bosses": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["bossId", "configVersion", "mechanics"],
+        "properties": {
+          "bossId": { "type": "string" },
+          "configVersion": { "type": "integer", "minimum": 2 },
+          "mechanics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["mechanicId", "displayName", "mechanicType", "trigger", "resolve", "window", "validResponses", "outcomeMetrics"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

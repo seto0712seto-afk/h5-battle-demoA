@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "2.0.0",
+  "metadataVersion": "combat-metadata-20260730.1",
+  "units": {
+    "P01": { "primaryRole": "damage", "secondaryRoles": ["burst"], "roleWeights": { "damage": 0.95, "healing": 0.00, "protection": 0.10, "resource": 0.05 }, "tags": ["high_cost_burst"] },
+    "P02": { "primaryRole": "damage", "secondaryRoles": ["counter"], "roleWeights": { "damage": 0.90, "healing": 0.00, "protection": 0.25, "resource": 0.05 }, "tags": ["stacking_damage"] },
+    "P03": { "primaryRole": "damage", "secondaryRoles": ["healing"], "roleWeights": { "damage": 0.72, "healing": 0.55, "protection": 0.05, "resource": 0.05 }, "tags": ["hybrid_healer"] },
+    "P04": { "primaryRole": "protection", "secondaryRoles": ["damage"], "roleWeights": { "damage": 0.62, "healing": 0.00, "protection": 0.82, "resource": 0.05 }, "tags": ["shield_damage"] },
+    "P05": { "primaryRole": "protection", "secondaryRoles": ["healing"], "roleWeights": { "damage": 0.20, "healing": 0.48, "protection": 1.00, "resource": 0.05 }, "tags": ["team_shield"] },
+    "P06": { "primaryRole": "protection", "secondaryRoles": ["resource", "healing"], "roleWeights": { "damage": 0.25, "healing": 0.38, "protection": 0.95, "resource": 0.55 }, "tags": ["front_support"] },
+    "P07": { "primaryRole": "healing", "secondaryRoles": ["damage"], "roleWeights": { "damage": 0.62, "healing": 0.82, "protection": 0.10, "resource": 0.05 }, "tags": ["group_heal"] },
+    "P08": { "primaryRole": "healing", "secondaryRoles": ["protection"], "roleWeights": { "damage": 0.20, "healing": 1.00, "protection": 0.62, "resource": 0.05 }, "tags": ["single_target_recovery"] },
+    "P09": { "primaryRole": "resource", "secondaryRoles": ["damage"], "roleWeights": { "damage": 0.88, "healing": 0.00, "protection": 0.05, "resource": 1.00 }, "tags": ["high_cost_magic"] },
+    "P10": { "primaryRole": "resource", "secondaryRoles": ["protection", "damage"], "roleWeights": { "damage": 0.55, "healing": 0.00, "protection": 0.78, "resource": 0.82 }, "tags": ["shield_resource"] }
+  },
+  "bosses": {
+    "FORGE_BOSS_WARRIOR": { "archetypeTags": ["frontline_pressure", "telegraph_attack", "vulnerability_window"] },
+    "RANGE_BOSS_SHOOTER": { "archetypeTags": ["backline_pressure", "telegraph_attack", "sustained_pressure"] },
+    "MAGE_BOSS": { "archetypeTags": ["stacking_growth", "phase_escalation", "sustained_pressure"] }
+  }
+}

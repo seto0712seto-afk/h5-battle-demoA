@@ -185,10 +185,10 @@ function executionOverrides(skillId) {
         targetSelection: 'none',
         lockMode: 'none',
         invalidTargetResult: 'whiff'
-      },
-      specialEffects: ['apply_exposed']
+      }
     };
   }
+  if (skillId === 'SK-BOSS-004') return { specialEffects: ['apply_exposed'] };
   return {};
 }
 

@@ -18,17 +18,21 @@ import {
 } from './coreBattleRules';
 import { MONSTERS, MONSTER_SKILLS } from './monsterData';
 import {
+  consumeRuntimeMonsterSkillTemporaryPower,
   createMonsterAiRuntime,
   createMonsterInstance,
   increaseRuntimeMonsterSkillPower,
   monsterDamageMultiplier,
+  reduceRuntimeMonsterSkillTemporaryPower,
   runtimeMonsterSkillPower,
   SeededBattleRandom,
+  setRuntimeMonsterSkillTemporaryPower,
   selectMonsterAction,
   selectSeededTarget
 } from './monsterSystem';
 import type { ActionResult, BattleFxEvent, BattleState, BossData, BossId, EnemyBattlePosition, PlayerBattleSnapshot, Row, RuntimeEnemy, RuntimeSpirit, SkillButtonState, SkillData, SkillEnhanceCondition, StageEnemyConfig } from './types';
 import type { MonsterAiRuntime, MonsterDefinition, MonsterFinalStats, MonsterSkillDefinition } from './monsterTypes';
+import type { BattleTelemetryCollector } from './battleTelemetry';
 
 type Listener = (state: BattleState) => void;
 
@@ -41,6 +45,7 @@ interface BattleGameOptions {
   monsterLevel?: number;
   monsterStatOverrides?: Partial<MonsterFinalStats>;
   enemies?: StageEnemyConfig[];
+  telemetry?: BattleTelemetryCollector;
 }
 
 interface EnemyBattleSetup {
@@ -72,6 +77,10 @@ export class BattleGame {
   private enemyBossData: Record<string, BossData> = {};
   private enemyAi: Record<string, MonsterAiRuntime> = {};
   private enemyRandom: Record<string, SeededBattleRandom> = {};
+  private telemetry?: BattleTelemetryCollector;
+  private telemetryErrors: string[] = [];
+  private telemetrySkillContext?: { actorId: string; skillId: string };
+  private telemetryBattleEnded = false;
   constructor(options: string[] | BattleGameOptions = {}) {
     const normalizedOptions = Array.isArray(options) ? { selectedSpiritIds: options } : options;
     const rootConfig = normalizedOptions.config ?? battleSystemConfig();
@@ -122,11 +131,24 @@ export class BattleGame {
     this.monsterDefinition = firstSetup.definition;
     this.battleSeed = normalizedOptions.battleSeed ?? `${this.enemySetups.map((setup) => setup.definition.id).join('|')}:default`;
     this.playerSnapshot = normalizedOptions.playerSnapshot;
+    this.telemetry = normalizedOptions.telemetry;
     this.selectedSpiritIds = normalizeSelectedSpiritIds(
       normalizedOptions.playerSnapshot?.selectedSpiritIds ?? normalizedOptions.selectedSpiritIds ?? this.config.creatureConfig.map((spirit) => spirit.id),
       this.config
     );
     this.state = this.createInitialState();
+    this.notifyTelemetry('onBattleStart', {
+      seed: this.battleSeed,
+      selectedSpiritIds: [...this.state.selectedSpiritIds],
+      activeSpiritIds: this.getActiveSpiritIds(),
+      enemyIds: Object.keys(this.state.enemies),
+      enemyDefinitionIds: Object.values(this.state.enemies).map((enemy) => enemy.definitionId),
+      mana: this.state.mana.current,
+      maxMana: this.state.mana.max,
+      playerSlots: this.playerTelemetrySlots(),
+      reserveIds: this.getBenchSpiritIds()
+    });
+    this.notifyTelemetry('onRoundStart', { round: this.state.round.index });
   }
 
   subscribe(listener: Listener) {
@@ -145,6 +167,16 @@ export class BattleGame {
       window.clearInterval(this.timer);
       this.timer = null;
     }
+  }
+
+  getTelemetryErrors() {
+    return [...this.telemetryErrors];
+  }
+
+  getMonsterRandomHistory() {
+    return Object.fromEntries(
+      Object.entries(this.enemyRandom).map(([enemyId, random]) => [enemyId, random.history()])
+    );
   }
 
   reset() {
@@ -208,6 +240,9 @@ export class BattleGame {
     if (cycle) statuses.push(cycle.label + ' ' + cycle.current + '/' + cycle.max);
     if (runtime.exposedActive) statuses.push('破绽');
     if (enemy.statuses.vulnerable) statuses.push('易伤 ' + enemy.statuses.vulnerable.duration + ' 回合');
+    Object.entries(runtime.temporarySkillPowerBonuses).forEach(([skillId, value]) => {
+      if (value > 0) statuses.push((MONSTER_SKILLS[skillId]?.name ?? skillId) + '临时威力 +' + value);
+    });
     return { statuses: statuses.length > 0 ? statuses : ['稳定'], damageMultiplier: monsterDamageMultiplier(runtime) };
   }
 
@@ -238,6 +273,41 @@ export class BattleGame {
       skillName: skill?.name ?? pending.skillId,
       targetText,
       estimatedPower: skill && runtime ? runtimeMonsterSkillPower(runtime, skill) : 0
+    };
+  }
+
+  enemySkillDamagePreview(enemyId: string, skillId: string, targetId: string) {
+    const runtime = this.enemyAi[enemyId];
+    const bossConfig = this.enemyBossData[enemyId];
+    const skill = MONSTER_SKILLS[skillId];
+    const target = this.state.spirits[targetId];
+    const targetData = this.config.creatureConfig.find((spirit) => spirit.id === targetId);
+    if (!runtime || !bossConfig || !skill || !target || !targetData) return null;
+    const damageType = skill.execution.damageType ?? 'none';
+    if (!['physical', 'magical', 'fixed'].includes(damageType)) return null;
+    const power = runtimeMonsterSkillPower(runtime, skill);
+    const attack = damageType === 'physical' ? bossConfig.physicalAttack : bossConfig.magicAttack;
+    const defense = damageType === 'physical' ? targetData.physicalDefense : targetData.magicDefense;
+    const baseDamage = damageType === 'fixed' ? power : Math.ceil((power * attack) / Math.max(1, defense));
+    const statusInteraction = skill.execution.targetStatusDamageInteraction;
+    const statusStacks = statusInteraction ? target.statuses[statusInteraction.statusId]?.stacks ?? 0 : 0;
+    const statusDamageMultiplier = statusInteraction
+      ? 1 + statusStacks * (statusInteraction.finalDamageMultiplierPerStack ?? 0)
+      : 1;
+    const finalDamageMultiplier = monsterDamageMultiplier(runtime) * statusDamageMultiplier;
+    const rawDamage = Math.max(1, Math.ceil(baseDamage * finalDamageMultiplier));
+    const shieldPenetration = this.monsterShieldPenetration(rawDamage, statusStacks, statusInteraction?.shieldPenetration);
+    const shieldableDamage = Math.max(0, rawDamage - shieldPenetration);
+    const absorbed = Math.min(target.shieldValue, shieldableDamage);
+    const hpDamage = Math.max(0, rawDamage - absorbed);
+    return {
+      rawDamage,
+      hpDamage,
+      absorbed,
+      shieldPenetration,
+      lethal: hpDamage >= target.hp,
+      statusStacks,
+      finalDamageMultiplier
     };
   }
 
@@ -303,6 +373,19 @@ export class BattleGame {
         name: '伤害提高',
         detail: `当前 ${runtime?.damageIncreaseStacks ?? 0} 层，由怪物技能在本场战斗中累计。`
       });
+    }
+    if (runtime && definition.temporaryPowerResponse) {
+      const targetSkillId = definition.temporaryPowerResponse.targetSkillId;
+      const targetSkill = MONSTER_SKILLS[targetSkillId];
+      const permanentPower = runtime.runtimeSkillPowers[targetSkillId] ?? targetSkill?.execution.power ?? 0;
+      const basePower = targetSkill?.execution.power ?? 0;
+      const temporaryPower = runtime.temporarySkillPowerBonuses[targetSkillId] ?? 0;
+      if (permanentPower > basePower) {
+        statuses.push({ name: '永久成长', detail: `【${targetSkill?.name ?? targetSkillId}】永久威力 +${permanentPower - basePower}，本场战斗持续累积。` });
+      }
+      if (temporaryPower > 0) {
+        statuses.push({ name: '临时强化', detail: `下一次【${targetSkill?.name ?? targetSkillId}】临时威力 +${temporaryPower}；玩家每次攻击命中降低 ${definition.temporaryPowerResponse.reductionPerPlayerAttack}。` });
+      }
     }
     const cycle = this.enemyCycleView(enemyId);
     if (cycle) {
@@ -492,6 +575,8 @@ export class BattleGame {
     if (!slot) return { ok: false, message: '当前精灵不在登场位。' };
     const outgoing = this.spiritName(actor.id);
     const incoming = this.spiritName(targetId);
+    const rowBefore = slot.row;
+    const clearedHuntStacks = actor.statuses['hunter-wound']?.stacks ?? 0;
     this.clearTemporaryBattleState(actor);
     actor.action = 0;
     this.getSpirit(targetId).action = 0;
@@ -501,6 +586,16 @@ export class BattleGame {
     slot.spiritId = targetId;
     slot.row = this.spiritInfo(targetId).defaultPosition;
     this.log(outgoing + ' 换下，' + incoming + ' 在' + rowName(slot.row) + '登场。');
+    if (clearedHuntStacks > 0) this.log(outgoing + ' 进入后备，清除 ' + clearedHuntStacks + ' 层【猎伤】。');
+    this.notifyTelemetry('onSwitchResolved', {
+      round: this.state.round.index,
+      outgoingId: actor.id,
+      incomingId: targetId,
+      forced: false,
+      slotIndex: slot.index,
+      rowBefore,
+      rowAfter: slot.row
+    });
     this.finishPlayerAction(false);
     return { ok: true };
   }
@@ -511,10 +606,18 @@ export class BattleGame {
     if (this.state.actionContext === 'extra') return { ok: false, message: '额外行动只能使用技能。' };
     const slot = this.findSlotBySpirit(actor.id);
     if (!slot) return { ok: false, message: '当前精灵不在登场位。' };
+    const rowBefore = slot.row;
     slot.row = slot.row === 'front' ? 'back' : 'front';
     actor.lastSkillId = null;
     actor.skillUseStreak = 0;
     this.log(this.spiritName(actor.id) + ' 切换至' + rowName(slot.row) + '。');
+    this.notifyTelemetry('onRowSwitchResolved', {
+      round: this.state.round.index,
+      unitId: actor.id,
+      slotIndex: slot.index,
+      rowBefore,
+      rowAfter: slot.row
+    });
     this.finishPlayerAction(false);
     return { ok: true };
   }
@@ -532,11 +635,27 @@ export class BattleGame {
     if (!replacement || this.state.phase !== 'forced-replacement') return { ok: false, message: '当前不需要替换。' };
     if (!replacement.candidates.includes(candidateId)) return { ok: false, message: '候选精灵不可用。' };
     const targetSlot = this.state.slots[replacement.slotIndex];
+    const rowBefore = targetSlot.row;
     this.getSpirit(candidateId).action = 0;
     this.getSpirit(candidateId).entrySkillAvailable = true;
     targetSlot.spiritId = candidateId;
     targetSlot.row = this.spiritInfo(candidateId).defaultPosition;
     this.log(this.spiritName(candidateId) + ' 进入原' + rowName(targetSlot.row) + '格。');
+    this.notifyTelemetry('onSwitchResolved', {
+      round: this.state.round.index,
+      incomingId: candidateId,
+      forced: true,
+      slotIndex: targetSlot.index,
+      rowBefore,
+      rowAfter: targetSlot.row
+    });
+    this.notifyTelemetry('onReplacementLifecycle', {
+      round: this.state.round.index,
+      status: 'completed',
+      slotIndex: targetSlot.index,
+      incomingId: candidateId,
+      reserveIds: this.getBenchSpiritIds()
+    });
     this.state.replacement = null;
     this.continueRoundEndReplacement();
     this.emit();
@@ -731,6 +850,15 @@ export class BattleGame {
       }
       this.activateEnemyContext(next.unitId);
       this.state.activeUnit = { type: 'boss', id: next.unitId };
+      this.notifyTelemetry('onActionStart', {
+        round: this.state.round.index,
+        side: 'enemy',
+        unitId: next.unitId,
+        actionContext: 'normal',
+        mana: this.state.mana.current,
+        playerSlots: this.playerTelemetrySlots(),
+        reserveIds: this.getBenchSpiritIds()
+      });
       this.executeBossTurn();
       return;
     }
@@ -744,6 +872,15 @@ export class BattleGame {
     this.state.actionContext = 'normal';
     this.state.activeUnit = { type: 'spirit', id: next.unitId };
     this.log(this.spiritName(next.unitId) + ' 获得行动机会。');
+    this.notifyTelemetry('onActionStart', {
+      round: this.state.round.index,
+      side: 'player',
+      unitId: next.unitId,
+      actionContext: 'normal',
+      mana: this.state.mana.current,
+      playerSlots: this.playerTelemetrySlots(),
+      reserveIds: this.getBenchSpiritIds()
+    });
     this.beginPlayerAction(next.unitId);
     if (!this.hasLegalPlayerAction(next.unitId)) {
       this.log(this.spiritName(next.unitId) + ' 没有合法行动，自动跳过。');
@@ -758,6 +895,16 @@ export class BattleGame {
     const manaBefore = this.state.mana.current;
     this.state.mana.current = Math.min(this.state.mana.max, this.state.mana.current + 1);
     const gained = this.state.mana.current - manaBefore;
+    this.notifyTelemetry('onEnergyChanged', {
+      round: this.state.round.index,
+      source: 'action_start',
+      actorId,
+      before: manaBefore,
+      attemptedGain: 1,
+      gained,
+      spent: 0,
+      after: this.state.mana.current
+    });
     if (gained > 0) {
       this.log('行动开始：团队妖力 ' + manaBefore + ' → ' + this.state.mana.current + '（+1）。');
     } else {
@@ -790,6 +937,19 @@ export class BattleGame {
     const manaBeforeAction = this.state.mana.current;
     const confirmation = this.evaluateSkillState(skill, spirit, targetId, manaBeforeAction);
     if (!confirmation.usable) return { ok: false, message: confirmation.unavailableReason ?? '当前无法使用。' };
+    this.telemetrySkillContext = { actorId, skillId };
+    this.notifyTelemetry('onSkillConfirmed', {
+      round: this.state.round.index,
+      actorId,
+      skillId,
+      targetId,
+      actionContext: this.state.actionContext,
+      actualCost: confirmation.actualCost,
+      manaBefore: manaBeforeAction,
+      enhanced: confirmation.enhanced,
+      targetDependent: confirmation.targetDependent,
+      bossExposed: Boolean(this.monsterAi?.exposedActive)
+    });
     const actorRow = this.findSlotBySpirit(actorId)?.row ?? 'front';
     let fxKind: BattleFxEvent['kind'] = skill.kind === 'attack' ? 'player-attack' : skill.kind === 'heal' ? 'player-heal' : skill.kind === 'support' ? 'player-support' : skill.kind === 'debuff' ? 'player-debuff' : 'player-buff';
     let fxTargetIds: string[] = [];
@@ -832,6 +992,27 @@ export class BattleGame {
         }
         const actualDamage = Math.min(this.state.boss.hp, hitDamage);
         this.state.boss.hp -= actualDamage;
+        this.notifyTelemetry('onDamageResolved', {
+          round: this.state.round.index,
+          sourceSide: 'player',
+          sourceId: actorId,
+          skillId,
+          targetSide: 'enemy',
+          targetId: this.state.boss.id,
+          attempted: hitDamage,
+          actual: actualDamage,
+          absorbed: 0,
+          targetExposed: Boolean(this.monsterAi?.exposedActive)
+        });
+        if (this.state.boss.hp <= 0) {
+          this.notifyTelemetry('onUnitDefeated', {
+            round: this.state.round.index,
+            side: 'enemy',
+            unitId: this.state.boss.id,
+            sourceId: actorId,
+            skillId
+          });
+        }
         damage += actualDamage;
         resolvedHits += 1;
       }
@@ -843,12 +1024,34 @@ export class BattleGame {
         extraDamage = Math.ceil(extraDamage * this.currentBossDamageTakenMultiplier());
         const actualExtraDamage = Math.min(this.state.boss.hp, extraDamage);
         this.state.boss.hp -= actualExtraDamage;
+        this.notifyTelemetry('onDamageResolved', {
+          round: this.state.round.index,
+          sourceSide: 'player',
+          sourceId: actorId,
+          skillId,
+          targetSide: 'enemy',
+          targetId: this.state.boss.id,
+          attempted: extraDamage,
+          actual: actualExtraDamage,
+          absorbed: 0,
+          targetExposed: Boolean(this.monsterAi?.exposedActive)
+        });
+        if (this.state.boss.hp <= 0) {
+          this.notifyTelemetry('onUnitDefeated', {
+            round: this.state.round.index,
+            side: 'enemy',
+            unitId: this.state.boss.id,
+            sourceId: actorId,
+            skillId
+          });
+        }
         damage += actualExtraDamage;
         extraDamage = actualExtraDamage;
       } else if (extraDamage > 0) {
         this.log(skill.name + ' 的追加伤害因行动来源或目标失效而停止结算。');
         extraDamage = 0;
       }
+      if (damage > 0 && this.state.boss.hp > 0) this.reduceMonsterTemporaryPowerOnPlayerAttack();
       fxKind = 'player-attack';
       fxAmount = damage;
       this.log(
@@ -1000,6 +1203,7 @@ export class BattleGame {
       manaCost: manaSpent,
       manaGain: manaGained
     });
+    this.telemetrySkillContext = undefined;
     this.finishPlayerAction(true, skill.id);
     return { ok: true };
   }
@@ -1261,6 +1465,17 @@ export class BattleGame {
     const target = this.getSpirit(spiritId);
     target.shieldValue += amount;
     if (this.currentActorId() === spiritId) target.freshShieldValue += amount;
+    this.notifyTelemetry('onShieldGranted', {
+      round: this.state.round.index,
+      actorId: this.telemetrySkillContext?.actorId ?? spiritId,
+      skillId: this.telemetrySkillContext?.skillId,
+      targetId: spiritId,
+      attempted: amount,
+      granted: amount,
+      mode: 'stacking',
+      targetSlotIndex: this.findSlotBySpirit(spiritId)?.index,
+      targetRow: this.findSlotBySpirit(spiritId)?.row
+    });
     this.log(this.spiritName(spiritId) + ' 获得护盾 ' + amount + '（来源：' + source + '），当前护盾 ' + target.shieldValue + '。');
   }
 
@@ -1352,6 +1567,19 @@ export class BattleGame {
     const before = target.hp;
     target.hp = Math.min(this.spiritInfo(targetId).maxHp, target.hp + amount);
     const actual = target.hp - before;
+    this.notifyTelemetry('onHealingResolved', {
+      round: this.state.round.index,
+      actorId,
+      skillId: this.telemetrySkillContext?.skillId,
+      targetId,
+      attempted: amount,
+      effective: actual,
+      overheal: Math.max(0, amount - actual),
+      targetSlotIndex: this.findSlotBySpirit(targetId)?.index,
+      targetRow: this.findSlotBySpirit(targetId)?.row,
+      targetHpAfter: target.hp,
+      targetMaxHp: this.spiritInfo(targetId).maxHp
+    });
     this.log(this.spiritName(actorId) + ' 使用 ' + skillName + '，' + this.spiritName(targetId) + ' 回复 ' + actual + ' 点生命。');
     return actual;
   }
@@ -1359,8 +1587,22 @@ export class BattleGame {
   private healSpiritFlat(actorId: string, targetId: string, amount: number, skillName: string) {
     const target = this.getSpirit(targetId);
     const before = target.hp;
-    target.hp = Math.min(this.spiritInfo(targetId).maxHp, target.hp + Math.max(0, amount));
+    const attempted = Math.max(0, amount);
+    target.hp = Math.min(this.spiritInfo(targetId).maxHp, target.hp + attempted);
     const actual = target.hp - before;
+    this.notifyTelemetry('onHealingResolved', {
+      round: this.state.round.index,
+      actorId,
+      skillId: this.telemetrySkillContext?.skillId,
+      targetId,
+      attempted,
+      effective: actual,
+      overheal: Math.max(0, attempted - actual),
+      targetSlotIndex: this.findSlotBySpirit(targetId)?.index,
+      targetRow: this.findSlotBySpirit(targetId)?.row,
+      targetHpAfter: target.hp,
+      targetMaxHp: this.spiritInfo(targetId).maxHp
+    });
     this.log(this.spiritName(actorId) + ' 使用 ' + skillName + '，' + this.spiritName(targetId) + ' 回复 ' + actual + ' 点生命。');
     return actual;
   }
@@ -1385,6 +1627,17 @@ export class BattleGame {
     const before = target.shieldNextBossAction;
     target.shieldNextBossAction = Math.max(target.shieldNextBossAction, amount);
     const changed = target.shieldNextBossAction - before;
+    this.notifyTelemetry('onShieldGranted', {
+      round: this.state.round.index,
+      actorId,
+      skillId: this.telemetrySkillContext?.skillId,
+      targetId,
+      attempted: amount,
+      granted: changed,
+      mode: 'replace-if-higher',
+      targetSlotIndex: this.findSlotBySpirit(targetId)?.index,
+      targetRow: this.findSlotBySpirit(targetId)?.row
+    });
     this.log(
       this.spiritName(actorId) +
         ' 使用 ' +
@@ -1427,8 +1680,20 @@ export class BattleGame {
     if (cost <= 0) return 0;
     const before = this.state.mana.current;
     this.state.mana.current = Math.max(0, this.state.mana.current - cost);
+    const spent = before - this.state.mana.current;
+    this.notifyTelemetry('onEnergyChanged', {
+      round: this.state.round.index,
+      source: 'skill',
+      actorId: this.telemetrySkillContext?.actorId,
+      skillId: this.telemetrySkillContext?.skillId,
+      before,
+      attemptedGain: 0,
+      gained: 0,
+      spent,
+      after: this.state.mana.current
+    });
     this.log('团队妖力 ' + before + ' → ' + this.state.mana.current + '（-' + (before - this.state.mana.current) + '，技能消耗）。');
-    return before - this.state.mana.current;
+    return spent;
   }
 
   private gainMana(gain: number) {
@@ -1438,6 +1703,17 @@ export class BattleGame {
     const before = this.state.mana.current;
     this.state.mana.current = Math.min(this.state.mana.max, this.state.mana.current + gain);
     const actual = this.state.mana.current - before;
+    this.notifyTelemetry('onEnergyChanged', {
+      round: this.state.round.index,
+      source: 'skill',
+      actorId: this.telemetrySkillContext?.actorId,
+      skillId: this.telemetrySkillContext?.skillId,
+      before,
+      attemptedGain: gain,
+      gained: actual,
+      spent: 0,
+      after: this.state.mana.current
+    });
     if (actual > 0) {
       this.log('团队妖力 ' + before + ' → ' + this.state.mana.current + '（+' + actual + '，技能回能）。');
     } else if (gain > 0) {
@@ -1535,6 +1811,15 @@ export class BattleGame {
       this.state.phase = 'player-action';
       this.state.activeUnit = { type: 'spirit', id: actor.id };
       this.log(this.spiritName(actor.id) + ' 获得额外行动。');
+      this.notifyTelemetry('onActionStart', {
+        round: this.state.round.index,
+        side: 'player',
+        unitId: actor.id,
+        actionContext: 'extra',
+        mana: this.state.mana.current,
+        playerSlots: this.playerTelemetrySlots(),
+        reserveIds: this.getBenchSpiritIds()
+      });
       this.emit();
       return;
     }
@@ -1640,10 +1925,6 @@ export class BattleGame {
         runtime.actLastNextRound = true;
         this.log(this.state.boss.name + ' 使用了预告技能，将在下一回合最后行动。');
       }
-      if (skill.execution.specialEffects?.includes('apply_exposed')) {
-        runtime.exposedActive = true;
-        this.log('熔核破绽施加：Boss 在下一次行动开始前受到伤害 ×' + formatMultiplier(this.config.monsterExposedDamageTakenMultiplier ?? 1) + '。');
-      }
       this.log(
         skill.name +
           '完成预告，下一次合法行动强制使用 ' +
@@ -1660,6 +1941,22 @@ export class BattleGame {
         manaAfter: this.state.mana.current,
         manaCost: 0,
         manaGain: 0
+      });
+      this.notifyTelemetry('onBossSkillUsed', {
+        round: this.state.round.index,
+        enemyId: this.state.boss.id,
+        enemyDefinitionId: this.state.boss.definitionId,
+        skillId: skill.id,
+        source,
+        telegraph: true,
+        targetIds: targetId ? [targetId] : [],
+        power: runtimeMonsterSkillPower(runtime, MONSTER_SKILLS[runtime.pendingFollowup.skillId] ?? skill),
+        lockedTargetId: runtime.pendingFollowup.lockedTargetId,
+        lockedSlotIndex: runtime.pendingFollowup.lockedSlotIndex,
+        lockedOriginSlotIndex: runtime.pendingFollowup.lockedOriginSlotIndex,
+        lockedRow: runtime.pendingFollowup.lockedRow,
+        playerSlots: this.playerTelemetrySlots(),
+        reserveIds: this.getBenchSpiritIds()
       });
       return;
     }
@@ -1708,6 +2005,38 @@ export class BattleGame {
 
     this.applyMonsterSkillEffects(skill, affectedTargetIds);
     this.updateMonsterActionCycle(skill);
+    if (skill.execution.specialEffects?.includes('apply_exposed')) {
+      runtime.exposedActive = true;
+      this.log('高温爆发完成结算，熔核破绽施加：Boss 在下一次行动开始前受到伤害 ×' + formatMultiplier(this.config.monsterExposedDamageTakenMultiplier ?? 1) + '。');
+    }
+    const unresolvedReason = source === 'forced_followup' && affectedTargetIds.length === 0
+      ? lockedTargetId && this.state.spirits[lockedTargetId]?.hp <= 0
+        ? 'locked-unit-defeated' as const
+        : lockedSlotIndex !== undefined || lockedOriginSlotIndex !== undefined
+          ? 'target-row-empty' as const
+          : 'other' as const
+      : undefined;
+    this.notifyTelemetry('onBossSkillUsed', {
+      round: this.state.round.index,
+      enemyId: this.state.boss.id,
+      enemyDefinitionId: this.state.boss.definitionId,
+      skillId: skill.id,
+      source,
+      telegraph: false,
+      targetIds: [...affectedTargetIds],
+      power,
+      lockedTargetId,
+      lockedSlotIndex,
+      lockedOriginSlotIndex,
+      lockedRow,
+      playerSlots: this.playerTelemetrySlots(),
+      reserveIds: this.getBenchSpiritIds(),
+      unresolvedReason
+    });
+    if (skill.execution.consumeTemporaryPowerAfterUse) {
+      const consumed = consumeRuntimeMonsterSkillTemporaryPower(runtime, skill.id);
+      if (consumed.before > 0) this.log(skill.name + ' 完成结算，临时威力 +' + consumed.before + ' 已清除。');
+    }
 
   }
 
@@ -1816,17 +2145,33 @@ export class BattleGame {
         });
         return;
       }
+      if (effect.type === 'set_runtime_skill_temporary_power') {
+        const change = setRuntimeMonsterSkillTemporaryPower(runtime, effect.targetSkillId, effect.amount);
+        this.log((MONSTER_SKILLS[effect.targetSkillId]?.name ?? effect.targetSkillId) + '临时威力：+' + change.before + ' → +' + change.after + '。');
+        this.recordBattleFx({
+          kind: 'boss-buff', bossBehaviorName: skill.name, amount: effect.amount,
+          manaBefore: this.state.mana.current, manaAfter: this.state.mana.current, manaCost: 0, manaGain: 0
+        });
+        return;
+      }
       targetIds.forEach((targetId) => {
         const target = this.getSpirit(targetId);
         if (!target || target.hp <= 0) return;
+        const beforeStacks = target.statuses[effect.statusId]?.stacks ?? 0;
         target.statuses[effect.statusId] = mergeRuntimeStatus(target.statuses[effect.statusId], {
           id: effect.statusId,
           name: effect.name,
-          duration: effect.duration,
-          value: effect.value,
+          duration: effect.duration ?? 0,
+          value: effect.value ?? 0,
+          temporary: effect.temporary,
+          clearOnBench: effect.clearOnBench,
+          stackable: effect.stackable,
+          maxStacks: effect.maxStacks,
+          stacks: effect.stacks,
           sourceId: definition.id
         });
-        this.log(this.spiritName(targetId) + ' 获得【' + effect.name + '】' + effect.duration + ' 回合。');
+        const afterStacks = target.statuses[effect.statusId].stacks;
+        this.log(this.spiritName(targetId) + ' 获得【' + effect.name + '】' + (effect.stackable ? '，当前 ' + afterStacks + ' 层' + (afterStacks === beforeStacks ? '（已达上限）' : '') : '') + '。');
       });
     });
   }
@@ -1859,14 +2204,32 @@ export class BattleGame {
 
   private applyMonsterDamage(targetId: string, skill: MonsterSkillDefinition) {
     const target = this.getSpirit(targetId);
+    const hpBefore = target.hp;
     const damageType = skill.execution.damageType ?? 'none';
     const power = runtimeMonsterSkillPower(this.monsterAi!, skill);
     const attack = damageType === 'physical' ? this.config.bossConfig.physicalAttack : this.config.bossConfig.magicAttack;
     const targetData = this.spiritInfo(targetId);
     const defense = damageType === 'physical' ? targetData.physicalDefense : targetData.magicDefense;
     const baseDamage = damageType === 'fixed' ? power : Math.ceil((power * attack) / Math.max(1, defense));
-    const rawDamage = Math.max(1, Math.ceil(baseDamage * monsterDamageMultiplier(this.monsterAi!)));
-    const absorbed = Math.min(target.shieldValue, rawDamage);
+    const damageMultiplier = monsterDamageMultiplier(this.monsterAi!);
+    const statusInteraction = skill.execution.targetStatusDamageInteraction;
+    const statusStacks = statusInteraction ? target.statuses[statusInteraction.statusId]?.stacks ?? 0 : 0;
+    const statusDamageMultiplier = statusInteraction
+      ? 1 + statusStacks * (statusInteraction.finalDamageMultiplierPerStack ?? 0)
+      : 1;
+    const finalDamageMultiplier = damageMultiplier * statusDamageMultiplier;
+    const rawDamage = Math.max(1, Math.ceil(baseDamage * finalDamageMultiplier));
+    const shieldPenetration = this.monsterShieldPenetration(rawDamage, statusStacks, statusInteraction?.shieldPenetration);
+    if (statusInteraction && statusStacks > 0 && statusDamageMultiplier > 1) {
+      const statusName = target.statuses[statusInteraction.statusId]?.name ?? statusInteraction.statusId;
+      this.log(this.spiritName(targetId) + ' 的 ' + statusStacks + ' 层【' + statusName + '】生效，' + skill.name + '伤害倍率 ×' + formatMultiplier(statusDamageMultiplier) + '。');
+    }
+    if (statusInteraction && statusStacks > 0 && shieldPenetration > 0) {
+      const statusName = target.statuses[statusInteraction.statusId]?.name ?? statusInteraction.statusId;
+      this.log(this.spiritName(targetId) + ' 的 ' + statusStacks + ' 层【' + statusName + '】使 ' + skill.name + ' 有 ' + shieldPenetration + ' 点伤害绕过护盾。');
+    }
+    const shieldableDamage = Math.max(0, rawDamage - shieldPenetration);
+    const absorbed = Math.min(target.shieldValue, shieldableDamage);
     if (absorbed > 0) {
       target.shieldValue -= absorbed;
       target.freshShieldValue = Math.min(target.freshShieldValue, target.shieldValue);
@@ -1874,15 +2237,76 @@ export class BattleGame {
     }
     const hpDamage = Math.max(0, rawDamage - absorbed);
     target.hp = Math.max(0, target.hp - hpDamage);
+    const actualHpDamage = hpBefore - target.hp;
+    const overkillDamage = Math.max(0, hpDamage - actualHpDamage);
+    this.notifyTelemetry('onDamageResolved', {
+      round: this.state.round.index,
+      sourceSide: 'enemy',
+      sourceId: this.state.boss.id,
+      skillId: skill.id,
+      targetSide: 'player',
+      targetId,
+      attempted: rawDamage,
+      actual: actualHpDamage,
+      absorbed,
+      power,
+      targetRow: this.findSlotBySpirit(targetId)?.row,
+      targetSlotIndex: this.findSlotBySpirit(targetId)?.index,
+      targetHpAfter: target.hp,
+      targetMaxHp: targetData.maxHp,
+      formulaBaseDamage: baseDamage,
+      damageMultiplier: finalDamageMultiplier,
+      theoreticalDamage: rawDamage,
+      actualSettlementDamage: rawDamage,
+      overkillDamage,
+      mitigatedDamage: 0,
+      ineffectiveDamage: 0
+    });
     this.log(this.config.bossConfig.name + ' 的' + skill.name + '命中 ' + this.spiritName(targetId) + '，造成 ' + hpDamage + ' 点伤害。');
     if (target.hp === 0) {
       this.log(this.spiritName(targetId) + ' 阵亡。');
-      this.vacateDefeatedSpirit(targetId);
+      this.notifyTelemetry('onUnitDefeated', {
+        round: this.state.round.index,
+        side: 'player',
+        unitId: targetId,
+        sourceId: this.state.boss.id,
+        skillId: skill.id
+      });
+      this.vacateDefeatedSpirit(targetId, skill.id);
     } else if (target.chargeTurns > 0) {
       this.log(this.spiritName(targetId) + ' 的蓄势被攻击触发。');
       this.addDamageAmp(targetId, CHARGE_DAMAGE_AMP_STACKS_ON_HIT, '蓄势');
     }
     return hpDamage;
+  }
+
+  private monsterShieldPenetration(
+    rawDamage: number,
+    statusStacks: number,
+    config?: NonNullable<MonsterSkillDefinition['execution']['targetStatusDamageInteraction']>['shieldPenetration']
+  ) {
+    if (!config || statusStacks <= 0 || rawDamage <= 0 || config.settlement !== 'bypass') return 0;
+    const uncappedValue = Math.max(0, config.amountPerStack * statusStacks);
+    const cappedValue = config.maxValue === undefined ? uncappedValue : Math.min(uncappedValue, Math.max(0, config.maxValue));
+    if (config.mode === 'percentage') return Math.min(rawDamage, Math.ceil(rawDamage * Math.min(1, cappedValue)));
+    return Math.min(rawDamage, Math.ceil(cappedValue));
+  }
+
+  private reduceMonsterTemporaryPowerOnPlayerAttack() {
+    const runtime = this.monsterAi;
+    const response = this.monsterDefinition?.temporaryPowerResponse;
+    if (!runtime || !response) return;
+    const change = reduceRuntimeMonsterSkillTemporaryPower(runtime, response.targetSkillId, response.reductionPerPlayerAttack);
+    if (change.before <= 0 || change.before === change.after) return;
+    this.log(
+      '攻击削弱【' +
+        (MONSTER_SKILLS[response.targetSkillId]?.name ?? response.targetSkillId) +
+        '】临时威力：+' +
+        change.before +
+        ' → +' +
+        change.after +
+        '。'
+    );
   }
 
   private setMonsterSkillCooldown(skill: MonsterSkillDefinition) {
@@ -1927,13 +2351,21 @@ export class BattleGame {
     });
   }
 
-  private vacateDefeatedSpirit(spiritId: string) {
+  private vacateDefeatedSpirit(spiritId: string, sourceSkillId: string) {
     const slot = this.findSlotBySpirit(spiritId);
     this.clearDeadActionState(spiritId);
     if (!slot) return;
     if (!this.state.round.pendingReplacementSlotIndexes.includes(slot.index)) {
       this.state.round.pendingReplacementSlotIndexes.push(slot.index);
       this.state.round.pendingReplacementSlotIndexes.sort((a, b) => a - b);
+      this.notifyTelemetry('onReplacementLifecycle', {
+        round: this.state.round.index,
+        status: 'scheduled',
+        slotIndex: slot.index,
+        defeatedUnitId: spiritId,
+        sourceSkillId,
+        reserveIds: this.getBenchSpiritIds()
+      });
     }
     slot.spiritId = null;
     this.log('该位置在本回合剩余期间保持空置。');
@@ -1947,6 +2379,12 @@ export class BattleGame {
       if (!slot || slot.spiritId) continue;
       const candidates = this.getBenchSpiritIds();
       if (candidates.length === 0) {
+        this.notifyTelemetry('onReplacementLifecycle', {
+          round: this.state.round.index,
+          status: 'no_reserve',
+          slotIndex,
+          reserveIds: []
+        });
         this.log(rowName(slot.row) + '空位没有可用后备，继续保留空位。');
         continue;
       }
@@ -1956,6 +2394,12 @@ export class BattleGame {
         candidates,
         reason: '回合结束：为' + rowName(slot.row) + '空位选择后备'
       };
+      this.notifyTelemetry('onReplacementLifecycle', {
+        round: this.state.round.index,
+        status: 'requested',
+        slotIndex,
+        reserveIds: [...candidates]
+      });
       this.state.phase = 'forced-replacement';
       return;
     }
@@ -1989,6 +2433,7 @@ export class BattleGame {
     this.state.actionContext = 'normal';
     this.state.activeUnit = null;
     this.log('第 ' + nextIndex + ' 回合开始，行动位已按当前速度锁定。');
+    this.notifyTelemetry('onRoundStart', { round: nextIndex });
     delayedEnemyIds.forEach((enemyId) => {
       if (this.state.enemies[enemyId]?.hp > 0) {
         this.log(this.state.enemies[enemyId].name + ' 因上一回合使用预告技能，本回合行动移至最后。');
@@ -2019,6 +2464,7 @@ export class BattleGame {
       if (this.state.phase !== 'defeat') this.log('同一结算链中双方全部死亡，按规则判定 Boss 获胜。');
       this.state.phase = 'defeat';
       this.state.activeUnit = null;
+      this.finishTelemetryBattle('defeat');
       return true;
     }
     if (bossDead) {
@@ -2027,6 +2473,7 @@ export class BattleGame {
       }
       this.state.phase = 'victory';
       this.state.activeUnit = null;
+      this.finishTelemetryBattle('victory');
       return true;
     }
     if (playerDead) {
@@ -2035,6 +2482,7 @@ export class BattleGame {
       }
       this.state.phase = 'defeat';
       this.state.activeUnit = null;
+      this.finishTelemetryBattle('defeat');
       return true;
     }
     return false;
@@ -2121,6 +2569,53 @@ export class BattleGame {
   private log(text: string) {
     this.state.logSerial += 1;
     this.state.logs = [formatLogEntry(this.state.logSerial, text)].concat(this.state.logs).slice(0, 500);
+  }
+
+  private finishTelemetryBattle(result: 'victory' | 'defeat') {
+    if (this.telemetryBattleEnded) return;
+    this.telemetryBattleEnded = true;
+    this.state.round.pendingReplacementSlotIndexes.forEach((slotIndex) => {
+      this.notifyTelemetry('onReplacementLifecycle', {
+        round: this.state.round.index,
+        status: 'battle_ended',
+        slotIndex,
+        reserveIds: this.getBenchSpiritIds()
+      });
+    });
+    this.notifyTelemetry('onBattleEnd', {
+      round: this.state.round.index,
+      result,
+      mana: this.state.mana.current,
+      livingSpiritIds: this.state.selectedSpiritIds.filter((id) => this.state.spirits[id]?.hp > 0),
+      livingEnemyIds: Object.values(this.state.enemies).filter((enemy) => enemy.hp > 0).map((enemy) => enemy.id)
+    });
+  }
+
+  private notifyTelemetry<K extends keyof BattleTelemetryCollector>(
+    method: K,
+    payload: Parameters<NonNullable<BattleTelemetryCollector[K]>>[0]
+  ) {
+    const callback = this.telemetry?.[method] as ((value: typeof payload) => void) | undefined;
+    if (!callback) return;
+    try {
+      callback(payload);
+    } catch (error) {
+      this.telemetryErrors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  private playerTelemetrySlots() {
+    return this.state.slots.map((slot) => {
+      const spirit = slot.spiritId ? this.state.spirits[slot.spiritId] : undefined;
+      return {
+        slotIndex: slot.index,
+        unitId: slot.spiritId,
+        row: slot.row,
+        hp: spirit?.hp ?? 0,
+        maxHp: slot.spiritId ? this.spiritInfo(slot.spiritId).maxHp : 0,
+        shield: spirit?.shieldValue ?? 0
+      };
+    });
   }
 
   private emit() {

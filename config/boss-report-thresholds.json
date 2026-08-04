@@ -1,0 +1,29 @@
+{
+  "forge": {
+    "decisionShiftPercentagePoints": 0.10,
+    "manaSpendShift": 0.5,
+    "damageIncreaseRatio": 0.15,
+    "lowExposedDamageShare": 0.20,
+    "activeResponsePassRate": 0.30,
+    "activeResponseRiskRate": 0.15,
+    "ignoreWinRatePenalty": 0.10,
+    "ignoreRemainingHpPenalty": 0.15,
+    "ignoreKillRateIncrease": 0.10,
+    "ignoreForcedReplacementIncrease": 0.5,
+    "defenseSmallWinRateDifference": 0.05,
+    "defenseSmallRemainingHpDifference": 0.10,
+    "defenseSmallForcedReplacementDifference": 0.25,
+    "minimumGroupWindows": 30,
+    "nonStrategicMissRiskRate": 0.01,
+    "nonStrategicMissFailRate": 0.05,
+    "longBattlePassRate": 0.05,
+    "longBattleRiskRate": 0.15,
+    "healthyWinRateMin": 0.70,
+    "healthyWinRateMax": 0.90,
+    "healthyMedianRoundMin": 9,
+    "healthyMedianRoundMax": 14,
+    "netResponsePassRate": 0.10,
+    "netResponseRiskRate": 0.05,
+    "overProtectionSurvivalMargin": 0.15
+  }
+}
