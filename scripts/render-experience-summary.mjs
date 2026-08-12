@@ -24,6 +24,9 @@ export function renderExperienceMarkdown(report) {
   const bossRows = Object.entries(report.bosses).map(([bossId, item]) =>
     `| ${bossId} | ${item.battlesReached} | ${nullable(item.bossActionsAverage)} | ${percent(item.coreMechanicSeenRate)} |`
   ).join('\n') || '| - | 0 | - | - |';
+  const skillRows = Object.values(report.skills).map((item) =>
+    `| ${item.spiritName} | ${item.skillName} | ${item.uses} | ${percent(item.useShareOfOwnerSkillActions)} | ${nullable(item.averageActualCost)} | ${percent(item.freeUseRate)} | ${nullable(item.averageDamage)} | ${nullable(item.averageEffectiveHealing)} | ${nullable(item.shieldGranted)} | ${nullable(item.shieldAbsorbed)} | ${percent(item.shieldUtilizationRate)} | ${nullable(item.energyGenerated)} | ${percent(ratio(item.energyOverflow, item.energyRequested))} |`
+  ).join('\n');
   return `# Battle Experience Report
 
 ## 总览
@@ -61,6 +64,18 @@ ${warningLines}
 | Boss ID | 到达 | 平均行动 | 核心机制体验率 |
 |---|---:|---:|---:|
 ${bossRows}
+
+## 精灵技能量化
+
+| 精灵 | 技能 | 使用 | 占比 | 平均实费 | 免费率 | 平均伤害 | 平均有效治疗 | 护盾生成 | 护盾吸收 | 护盾利用率 | 实际回能 | 回能溢出率 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+${skillRows}
+
+## 指定技能专项指标
+
+\`\`\`json
+${JSON.stringify(report.skillValidation ?? {}, null, 2)}
+\`\`\`
 
 ## 异常 Seed
 
@@ -108,8 +123,10 @@ function mechanicRow(record) {
 
 const SKILL_COLUMNS = [
   'spiritId', 'spiritName', 'skillId', 'skillName', 'uses', 'ownerSkillActions',
-  'useShareOfOwnerSkillActions', 'damageDealt', 'effectiveHealing', 'overheal', 'shieldGranted',
-  'energyGenerated', 'energyOverflow', 'enhancedAvailableCount', 'enhancedUseCount', 'enhancedConversionRate'
+  'useShareOfOwnerSkillActions', 'repeatedUses', 'consecutiveRepeatRate', 'averageConfiguredCost', 'averageActualCost',
+  'freeUses', 'freeUseRate', 'damageDealt', 'averageDamage', 'effectiveHealing', 'averageEffectiveHealing', 'overheal',
+  'shieldGranted', 'shieldAbsorbed', 'shieldUtilizationRate', 'energyRequested', 'energyGenerated', 'energyOverflow',
+  'enhancedAvailableCount', 'enhancedUseCount', 'enhancedConversionRate'
 ];
 
 function renderCsv(rows, columns) {
@@ -123,6 +140,7 @@ function csvCell(value) {
 }
 
 function percent(value) { return value === null || value === undefined ? '-' : `${(value * 100).toFixed(2)}%`; }
+function ratio(value, total) { return total > 0 ? value / total : 0; }
 function nullable(value) { return value === null || value === undefined ? '-' : value; }
 function formatValue(value) { return typeof value === 'number' && Math.abs(value) <= 1 ? percent(value) : nullable(value); }
 

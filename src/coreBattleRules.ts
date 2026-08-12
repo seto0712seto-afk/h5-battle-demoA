@@ -12,6 +12,9 @@ export interface StatusApplication {
   appliedDuringOwnerAction?: boolean;
   clearOnBench?: boolean;
   sourceId?: string;
+  instanceId?: string;
+  sourceUnitId?: string;
+  sourceSkillId?: string;
 }
 
 export const CORE_STATUS_RULES = {
@@ -19,15 +22,19 @@ export const CORE_STATUS_RULES = {
     id: 'damage-amp',
     name: '爆发',
     stackable: true,
-    maxStacks: 99,
-    description: '每层使自身造成的伤害提高 25%，持续至持有者下一次正常行动结束。'
+    maxStacks: 4,
+    temporary: false,
+    clearOnBench: true,
+    description: '最多4层；每层使下一次技能威力提高25%，技能完整结算后只消耗1层旧爆发。'
   },
   charge: {
     id: 'charge',
     name: '蓄势',
     stackable: false,
     maxStacks: 1,
-    description: '每次受到敌方攻击且存活时获得 4 层爆发，持续时间按持有者的正常行动次数计算。'
+    temporary: false,
+    clearOnBench: true,
+    description: '本回合第一次受到攻击时获得3层爆发并立即移除；若未触发则在本回合结束时移除。'
   },
   regen: {
     id: 'regen',
@@ -36,12 +43,14 @@ export const CORE_STATUS_RULES = {
     maxStacks: 1,
     description: '行动开始时恢复 10% 最大生命；同名回复只保留一个，持续时间按持有者的正常行动次数计算。'
   },
-  shieldFormation: {
-    id: 'shield-formation',
-    name: '盾阵',
+  energySaving: {
+    id: 'energy-saving',
+    name: '节能',
     stackable: false,
     maxStacks: 1,
-    description: '状态存在时，护盾不会在持有者正常行动结束后清除，持续时间按持有者的正常行动次数计算。'
+    temporary: false,
+    clearOnBench: true,
+    description: '下一次使用技能时，技能自身动态费用结算后降低50%并向下取整，最低0费；支付后移除，离场时清除。'
   },
   vulnerable: {
     id: 'vulnerable',
@@ -52,7 +61,7 @@ export const CORE_STATUS_RULES = {
   }
 } as const;
 
-export const CHARGE_DAMAGE_AMP_STACKS_ON_HIT = 4;
+export const CHARGE_DAMAGE_AMP_STACKS_ON_HIT = 3;
 
 export function buildRoundState(
   index: number,
@@ -117,7 +126,10 @@ export function mergeRuntimeStatus(current: RuntimeStatus | undefined, applicati
       duration: Math.max(0, application.duration),
       skipCurrentOwnerActionEnd: application.appliedDuringOwnerAction ?? false,
       clearOnBench: application.clearOnBench ?? false,
-      sourceId: application.sourceId
+      sourceId: application.sourceId,
+      instanceId: application.instanceId,
+      sourceUnitId: application.sourceUnitId,
+      sourceSkillId: application.sourceSkillId
     };
   }
   return {
@@ -130,7 +142,10 @@ export function mergeRuntimeStatus(current: RuntimeStatus | undefined, applicati
     duration: Math.max(current.duration, application.duration),
     skipCurrentOwnerActionEnd: current.skipCurrentOwnerActionEnd || (application.appliedDuringOwnerAction ?? false),
     clearOnBench: current.clearOnBench || (application.clearOnBench ?? false),
-    sourceId: application.sourceId ?? current.sourceId
+    sourceId: application.sourceId ?? current.sourceId,
+    instanceId: application.instanceId ?? current.instanceId,
+    sourceUnitId: application.sourceUnitId ?? current.sourceUnitId,
+    sourceSkillId: application.sourceSkillId ?? current.sourceSkillId
   };
 }
 

@@ -1,6 +1,6 @@
 export const UNIFIED_EVENT_TYPES = [
   'battle_start', 'battle_end', 'round_start', 'round_end', 'action_start', 'action_end',
-  'skill_confirm', 'skill_resolve', 'damage', 'heal', 'shield_gain', 'shield_absorb',
+    'skill_confirm', 'skill_resolve', 'damage', 'heal', 'shield_gain', 'shield_absorb', 'shield_consume',
   'resource_gain', 'resource_spend', 'status_apply', 'status_remove', 'target_lock',
   'telegraph_start', 'telegraph_end', 'mechanic_window_start', 'mechanic_window_end',
   'unit_death', 'replacement_scheduled', 'replacement_completed', 'position_change',
@@ -42,7 +42,7 @@ export function normalizeTraceEvents(trace) {
 
   const endAction = () => {
     if (!currentAction) return;
-    if (currentAction.skillId && currentAction.side === 'player') {
+    if (currentAction.skillId && currentAction.side === 'player' && !currentAction.resolved) {
       emit('skill_resolve', {}, {
         round: currentAction.round,
         actionIndex: currentAction.actionIndex,
@@ -76,7 +76,7 @@ export function normalizeTraceEvents(trace) {
     if (raw.type === 'action_start') {
       endAction();
       actionIndex += 1;
-      currentAction = { actionIndex, round: raw.round ?? currentRound, sourceId: raw.unitId, side: raw.side, skillId: null };
+      currentAction = { actionIndex, round: raw.round ?? currentRound, sourceId: raw.unitId, side: raw.side, skillId: null, resolved: false };
       emit('action_start', raw, { sourceId: raw.unitId, metadata: { ...raw, sourceSide: raw.side } });
       continue;
     }
@@ -87,6 +87,14 @@ export function normalizeTraceEvents(trace) {
     if (raw.type === 'skill_confirmed') {
       if (currentAction) currentAction.skillId = raw.skillId;
       emit('skill_confirm', raw, { sourceId: raw.actorId, targetId: raw.targetId ?? null });
+      continue;
+    }
+    if (raw.type === 'skill_resolved') {
+      if (currentAction) {
+        currentAction.skillId = raw.skillId;
+        currentAction.resolved = true;
+      }
+      emit('skill_resolve', raw, { sourceId: raw.actorId, targetId: raw.targetId ?? raw.targetIds?.[0] ?? null });
       continue;
     }
     if (raw.type === 'ai_decision') {
@@ -104,6 +112,34 @@ export function normalizeTraceEvents(trace) {
     }
     if (raw.type === 'shield') {
       emit('shield_gain', raw, { sourceId: raw.actorId, targetId: raw.targetId, value: raw.granted });
+      continue;
+    }
+    if (raw.type === 'shield_absorbed') {
+      emit('shield_absorb', raw, {
+        sourceId: raw.sourceUnitId,
+        targetId: raw.targetId,
+        skillId: raw.sourceSkillId ?? null,
+        value: raw.absorbedDamage
+      });
+      continue;
+    }
+    if (raw.type === 'shield_consumed') {
+      emit('shield_consume', raw, {
+        sourceId: raw.sourceUnitId,
+        targetId: raw.targetId,
+        skillId: raw.consumedBySkillId ?? raw.sourceSkillId ?? null,
+        value: raw.shieldConsumed
+      });
+      continue;
+    }
+    if (raw.type === 'status_changed') {
+      emit(raw.change === 'remove' ? 'status_remove' : 'status_apply', raw, {
+        sourceId: raw.sourceUnitId ?? null,
+        targetId: raw.targetUnitId,
+        skillId: raw.sourceSkillId ?? null,
+        statusId: raw.statusId,
+        value: raw.stackDelta ?? raw.stackAfter ?? 0
+      });
       continue;
     }
     if (raw.type === 'energy') {
@@ -215,6 +251,7 @@ function eventValue(type, raw) {
   if (type === 'heal') return raw.effective ?? 0;
   if (type === 'shield_gain') return raw.granted ?? 0;
   if (type === 'shield_absorb') return raw.absorbed ?? 0;
+  if (type === 'shield_consume') return raw.shieldConsumed ?? 0;
   if (type === 'resource_gain') return raw.gained ?? 0;
   if (type === 'resource_spend') return raw.spent ?? raw.actualCost ?? 0;
   return raw.value ?? raw.power ?? 0;

@@ -86,7 +86,6 @@ function inferSkillBehaviors(skill: SkillData) {
     skill.shieldPercent ||
     skill.shieldValue ||
     skill.teamShieldValue ||
-    skill.addShieldFormationTurns ||
     skill.addChargeTurns
   ) {
     behaviors.add('protect');
@@ -103,7 +102,7 @@ function inferSkillBehaviors(skill: SkillData) {
   ) {
     behaviors.add('recover');
   }
-  if (skill.gain > 0 || skill.restoreManaTo !== undefined || skill.gainWhenManaBelow !== undefined) {
+  if (skill.gain > 0 || skill.restoreManaTo !== undefined || skill.gainWhenManaBelow !== undefined || skill.addEnergySaving) {
     behaviors.add('energy');
   }
   return behaviors;

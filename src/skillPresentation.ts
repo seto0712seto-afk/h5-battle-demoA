@@ -25,7 +25,7 @@ function skillReferencedStatusIds(skill: SkillData) {
   if (skill.addDamageAmpStacks || skill.critIfDamageAmp) ids.add(CORE_STATUS_RULES.damageAmp.id);
   if (skill.addChargeTurns) ids.add(CORE_STATUS_RULES.charge.id);
   if (skill.addRegenTurns) ids.add(CORE_STATUS_RULES.regen.id);
-  if (skill.addShieldFormationTurns) ids.add(CORE_STATUS_RULES.shieldFormation.id);
+  if (skill.addEnergySaving) ids.add(CORE_STATUS_RULES.energySaving.id);
   if (skill.addBossVulnerabilityTurns) ids.add(CORE_STATUS_RULES.vulnerable.id);
   skill.enhanceRules?.forEach((rule) => {
     if (rule.condition.type === 'target_has_status' || rule.condition.type === 'actor_status_stacks') {

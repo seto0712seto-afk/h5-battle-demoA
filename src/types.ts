@@ -85,6 +85,7 @@ export interface SkillData {
   kind: SkillKind;
   damageType: DamageType;
   target: SkillTarget;
+  excludeSelfTarget?: boolean;
   power?: number;
   cost: number;
   gain: number;
@@ -119,10 +120,11 @@ export interface SkillData {
   frontHealPercent?: number;
   healFlatValue?: number;
   selfHpCostPercent?: number;
-  addShieldFormationTurns?: number;
+  addEnergySaving?: boolean;
   addBossVulnerabilityTurns?: number;
   consecutiveUseCostReduction?: number;
   minimumCost?: number;
+  resetConsecutiveUseAtMinimumCost?: boolean;
   firstUseInBattleCostReduction?: number;
   firstSkillAfterEntryCostReduction?: number;
   consecutivePowerBonus?: number;
@@ -149,6 +151,18 @@ export interface RuntimeStatus {
   skipCurrentOwnerActionEnd: boolean;
   clearOnBench?: boolean;
   sourceId?: string;
+  instanceId?: string;
+  sourceUnitId?: string;
+  sourceSkillId?: string;
+}
+
+export interface RuntimeShieldInstance {
+  id: string;
+  sourceUnitId: string;
+  sourceSkillId?: string;
+  generated: number;
+  remaining: number;
+  createdOrder: number;
 }
 
 export interface BossPreviewSkill {
@@ -192,6 +206,8 @@ export interface RuntimeSpirit {
   skillUseStreak: number;
   skillUseCounts: Record<string, number>;
   entrySkillAvailable: boolean;
+  entrySequenceId: number;
+  skillUseIndexAfterEntry: number;
   damageAmpStacks: number;
   freshDamageAmpStacks: number;
   chargeTurns: number;
@@ -200,6 +216,7 @@ export interface RuntimeSpirit {
   freshRegenTurns: number;
   shieldValue: number;
   freshShieldValue: number;
+  shieldInstances: RuntimeShieldInstance[];
   statuses: Record<string, RuntimeStatus>;
 }
 

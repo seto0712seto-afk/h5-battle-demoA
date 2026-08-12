@@ -2,11 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   effectiveHealAmount,
+  estimateRegenFuture,
+  estimateShieldPressFixedDamage,
   evaluateHunterWoundSwap,
+  normalizeDecisionSample,
   scoreShieldFormationFuture,
   scoreWindCutFuture,
   selfAndTargetEffectiveHeal,
-  totalScoreForTendency
+  totalScoreForTendency,
+  usesWeightedDecisionPolicy
 } from '../scripts/battle-policy.mjs';
 import { FIXED_TEAMS, RANGE_TUNINGS } from '../scripts/single-boss-config.mjs';
 
@@ -71,6 +75,47 @@ test('鹿鸣回春以自身为目标时只计算一次', () => {
   assert.equal(other, 80);
 });
 
+test('生机播种评分估算新增触发次数与未来有效治疗', () => {
+  const fresh = estimateRegenFuture({
+    currentHp: 180,
+    maxHp: 300,
+    appliedTurns: 4,
+    existingTurns: 0,
+    expectedIncomingDamage: 180,
+    isFront: true
+  });
+  assert.equal(fresh.availableTriggers, 4);
+  assert.ok(fresh.expectedTriggers > 0 && fresh.expectedTriggers < 4);
+  assert.ok(fresh.expectedEffectiveHealing > 0);
+
+  const alreadyFullDuration = estimateRegenFuture({
+    currentHp: 180,
+    maxHp: 300,
+    appliedTurns: 4,
+    existingTurns: 4,
+    expectedIncomingDamage: 180,
+    isFront: true
+  });
+  assert.deepEqual(alreadyFullDuration, {
+    availableTriggers: 0,
+    expectedTriggers: 0,
+    expectedEffectiveHealing: 0,
+    healPerTrigger: 30
+  });
+});
+
+test('盾压评分读取当前可消耗护盾并写入决策诊断', () => {
+  assert.equal(estimateShieldPressFixedDamage({ currentShield: 350, conversionRatio: 1 }), 350);
+  assert.equal(estimateShieldPressFixedDamage({ currentShield: 0, conversionRatio: 1 }), 0);
+  const sample = normalizeDecisionSample({
+    skill: { id: 'M04-S2' },
+    score: 350,
+    breakdown: { immediateDamage: 350 },
+    diagnostics: { shieldPressConsumableShield: 350, shieldPressExpectedFixedDamage: 350 }
+  });
+  assert.deepEqual(sample.diagnostics, { shieldPressConsumableShield: 350, shieldPressExpectedFixedDamage: 350 });
+});
+
 test('灰羽Control沿用仓库2200生命且实验配置互相独立', () => {
   assert.equal(RANGE_TUNINGS['RANGE-CONTROL'].hp, 2200);
   assert.equal(RANGE_TUNINGS['RANGE-CONTROL'].skillPowers.RANGE_BOSS_SKYFALL, 100);
@@ -93,6 +138,13 @@ test('三种玩家倾向只改变同一评分项的权重', () => {
   assert.ok(totalScoreForTendency(protection, 'defense') > totalScoreForTendency(protection, 'balanced'));
   assert.ok(totalScoreForTendency(protection, 'balanced') > totalScoreForTendency(protection, 'offense'));
   assert.throws(() => totalScoreForTendency(damage, 'unknown'), /Unknown player tendency/);
+});
+
+test('猎伤感知策略与v3策略统一使用玩家倾向评分', () => {
+  assert.equal(usesWeightedDecisionPolicy('balanced-v3'), true);
+  assert.equal(usesWeightedDecisionPolicy('balanced-v3-neutral'), true);
+  assert.equal(usesWeightedDecisionPolicy('balanced-v4-hunter-aware'), true);
+  assert.equal(usesWeightedDecisionPolicy('balanced-v2'), false);
 });
 
 test('猎伤应对仅在当前贯射致死且换入者可存活时选择换宠', () => {

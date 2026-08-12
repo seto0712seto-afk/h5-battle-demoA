@@ -15,8 +15,16 @@ export async function runSingleBoss({
   team,
   tuning,
   outputDir,
-  debugDecisions = false,
-  diagnosticTrace = false
+  debugDecisions = true,
+  decisionSampleLimit = 120,
+  diagnosticTrace = false,
+  testStrategy = 'none',
+  specialtyMetrics = false,
+  aiStrategy,
+  testOnlySourceBossId,
+  testOnlyBossHp,
+  testOnlyBossAttack,
+  experience = true
 }) {
   await mkdir(path.resolve(projectRoot, outputDir), { recursive: true });
   const args = [
@@ -27,10 +35,18 @@ export async function runSingleBoss({
     `--policy=${policy}`,
     `--playerTendency=${playerTendency}`,
     `--roster=${roster}`,
+    `--testStrategy=${testStrategy}`,
+    `--specialtyMetrics=${specialtyMetrics}`,
+    `--aiStrategy=${aiStrategy ?? (testStrategy === 'refresh_seek_test' ? 'refresh_seek_test' : playerTendency)}`,
     `--output=../${normalize(outputDir)}/raw-summary.json`,
     `--artifactDir=../${normalize(outputDir)}/`,
-    `--debug-decisions=${debugDecisions}`
+    `--debug-decisions=${debugDecisions}`,
+    `--decisionSampleLimit=${decisionSampleLimit}`
   ];
+  args.push(`--experience=${experience}`);
+  if (testOnlySourceBossId) args.push(`--testOnlySourceBossId=${testOnlySourceBossId}`);
+  if (testOnlyBossHp !== undefined) args.push(`--testOnlyBossHp=${testOnlyBossHp}`);
+  if (testOnlyBossAttack !== undefined) args.push(`--testOnlyBossAttack=${testOnlyBossAttack}`);
   if (diagnosticTrace) {
     args.push('--diagnostic-trace=true');
     args.push(`--diagnosticTraceOutput=../${normalize(outputDir)}/diagnostic-trace.json`);
@@ -38,7 +54,7 @@ export async function runSingleBoss({
   if (team) args.push(`--team=${team}`);
   if (tuning) args.push(`--tuning=${tuning}`);
   await spawnChecked(process.execPath, args);
-  return readReport(outputDir);
+  return experience ? readReport(outputDir) : null;
 }
 
 export async function readReport(outputDir) {
@@ -90,7 +106,7 @@ export function behaviorShares(report) {
 
 function behaviorBySkillId(skillId) {
   const explicit = {
-    'M01-S1': 'energy', 'M01-S2': 'attack', 'M01-S3': 'attack',
+    'M01-S1': 'attack', 'M01-S2': 'attack', 'M01-S3': 'attack',
     'M02-S1': 'attack', 'M02-S2': 'attack', 'M02-S3': 'attack',
     'M03-S1': 'attack', 'M03-S2': 'recover', 'M03-S3': 'attack',
     'M04-S1': 'attack', 'M04-S2': 'attack', 'M04-S3': 'protect',
@@ -99,7 +115,7 @@ function behaviorBySkillId(skillId) {
     'M07-S1': 'recover', 'M07-S2': 'attack', 'M07-S3': 'recover',
     'M08-S1': 'recover', 'M08-S2': 'recover', 'M08-S3': 'recover',
     'M09-S1': 'energy', 'M09-S2': 'attack', 'M09-S3': 'attack',
-    'M10-S1': 'energy', 'M10-S2': 'attack', 'M10-S3': 'protect'
+    'M10-S1': 'energy', 'M10-S2': 'attack', 'M10-S3': 'energy'
   };
   return explicit[skillId];
 }

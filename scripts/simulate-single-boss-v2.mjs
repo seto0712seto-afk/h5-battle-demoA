@@ -10,7 +10,7 @@ const values = Object.fromEntries(forwarded.map((argument) => {
 if (!values.bossId) throw new Error('Single Boss simulation requires --boss.');
 if (!values.output) forwarded.push(`--output=../validation-artifacts/single-boss-v2/${values.bossId}/${values.policy ?? 'balanced-v3'}/raw-summary.json`);
 if (!values.artifactDir) forwarded.push(`--artifactDir=../validation-artifacts/single-boss-v2/${values.bossId}/${values.policy ?? 'balanced-v3'}/`);
-if (!values.experience) forwarded.push('--experience=true');
+if (values.experience === undefined) forwarded.push('--experience=true');
 if (!values.policy) forwarded.push('--policy=balanced-v3');
 
 process.argv = [process.argv[0], process.argv[1], ...forwarded];

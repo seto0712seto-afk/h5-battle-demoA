@@ -5,7 +5,7 @@ export type TelemetrySide = 'player' | 'enemy';
 export type UnifiedBattleEventType =
   | 'battle_start' | 'battle_end' | 'round_start' | 'round_end'
   | 'action_start' | 'action_end' | 'skill_confirm' | 'skill_resolve'
-  | 'damage' | 'heal' | 'shield_gain' | 'shield_absorb'
+  | 'damage' | 'heal' | 'shield_gain' | 'shield_absorb' | 'shield_consume'
   | 'resource_gain' | 'resource_spend' | 'status_apply' | 'status_remove'
   | 'target_lock' | 'telegraph_start' | 'telegraph_end'
   | 'mechanic_window_start' | 'mechanic_window_end' | 'boss_mechanic_trigger'
@@ -58,6 +58,11 @@ export interface CombatEventV2 {
   theoreticalValue?: number;
   effectiveValue?: number;
   overValue?: number;
+  damageTakenMultiplier?: number;
+  exposedMultiplier?: number;
+  vulnerabilityMultiplier?: number;
+  extraDamageFromExposed?: number;
+  extraDamageFromVulnerability?: number;
   resourceBefore?: number;
   resourceAfter?: number;
   resourceDelta?: number;
@@ -88,6 +93,9 @@ export interface PlayerSlotTelemetry {
 
 export interface TelemetryEventBase {
   round: number;
+  battleId?: string;
+  seed?: string | number;
+  actionId?: string;
 }
 
 export interface BattleStartTelemetry {
@@ -116,13 +124,61 @@ export interface ActionStartTelemetry extends TelemetryEventBase {
 export interface SkillConfirmedTelemetry extends TelemetryEventBase {
   actorId: string;
   skillId: string;
+  skillName: string;
+  skillCastId: string;
   targetId?: string;
+  targetIds: string[];
   actionContext: ActionContext;
+  configuredCost: number;
+  costBeforeEnergySaving: number;
   actualCost: number;
   manaBefore: number;
+  energyBeforeActionStart: number;
+  energyGainedFromActionStart: number;
+  energyAfterActionStart: number;
+  energyGainRequested: number;
+  isFreeCast: boolean;
+  freeCastReason: 'none' | 'first_use_in_battle' | 'first_skill_after_entry' | 'first_use_after_entry' | 'dynamic_cost_reduced_to_zero';
+  stateBeforeCast: SkillRuntimeStateTelemetry;
+  entrySequenceId: number;
+  battleUseIndex: number;
+  skillUseIndexAfterEntry: number;
+  guaranteedCrit: boolean;
   enhanced: boolean;
   targetDependent: boolean;
   bossExposed: boolean;
+  actorHp: number;
+  actorMaxHp: number;
+  teamHp: number;
+  teamMaxHp: number;
+  energySavingSourceUnitId?: string;
+  energySavingSourceSkillId?: string;
+}
+
+export interface SkillRuntimeStateTelemetry {
+  lastSkillId: string | null;
+  consecutiveUseCount: number;
+  skillBattleUseCount: number;
+  entrySkillAvailable: boolean;
+  entrySequenceId: number;
+  skillUseIndexAfterEntry: number;
+  damageAmpStacks: number;
+  shieldValue: number;
+}
+
+export interface SkillResolvedTelemetry extends TelemetryEventBase {
+  actorId: string;
+  skillId: string;
+  skillName: string;
+  skillCastId: string;
+  configuredCost: number;
+  actualCost: number;
+  energyGainRequested: number;
+  energyGainActual: number;
+  energyOverflow: number;
+  energyAfterSkillResolution: number;
+  resetTrigger: 'none' | 'zero_cost_cast' | 'other_skill_used' | 'battle_start';
+  stateAfterCast: SkillRuntimeStateTelemetry;
 }
 
 export interface DamageResolvedTelemetry extends TelemetryEventBase {
@@ -134,6 +190,25 @@ export interface DamageResolvedTelemetry extends TelemetryEventBase {
   attempted: number;
   actual: number;
   absorbed: number;
+  skillCastId?: string;
+  hitIndex?: number;
+  damageType?: 'physical' | 'magic' | 'fixed';
+  baseOrPreModifierDamage?: number;
+  finalDamage?: number;
+  isCritical?: boolean;
+  criticalMultiplier?: number;
+  hpBefore?: number;
+  hpAfter?: number;
+  activeVulnerabilityStatusInstanceId?: string;
+  damageTakenMultiplier?: number;
+  exposedMultiplier?: number;
+  vulnerabilityMultiplier?: number;
+  finalDamageWithoutTakenModifiers?: number;
+  finalDamageWithoutVulnerability?: number;
+  extraDamageFromExposed?: number;
+  extraDamageFromVulnerability?: number;
+  vulnerabilitySourceUnitId?: string;
+  vulnerabilitySourceSkillId?: string;
   power?: number;
   targetRow?: Row;
   targetSlotIndex?: number;
@@ -156,6 +231,11 @@ export interface HealingResolvedTelemetry extends TelemetryEventBase {
   attempted: number;
   effective: number;
   overheal: number;
+  skillCastId?: string;
+  hpBefore?: number;
+  hpAfter?: number;
+  healingSourceType?: 'direct' | 'status' | 'self_cost_related';
+  statusInstanceId?: string;
   targetSlotIndex?: number;
   targetRow?: Row;
   targetHpAfter?: number;
@@ -169,8 +249,55 @@ export interface ShieldGrantedTelemetry extends TelemetryEventBase {
   attempted: number;
   granted: number;
   mode: 'stacking' | 'replace-if-higher';
+  shieldInstanceId?: string;
+  skillCastId?: string;
+  shieldBefore?: number;
+  shieldAfter?: number;
   targetSlotIndex?: number;
   targetRow?: Row;
+}
+
+export interface ShieldAbsorbedTelemetry extends TelemetryEventBase {
+  targetId: string;
+  shieldInstanceId: string;
+  sourceUnitId: string;
+  sourceSkillId?: string;
+  absorbedDamage: number;
+  remainingShield: number;
+  incomingDamageBeforeShield: number;
+  hpDamageAfterShield: number;
+}
+
+export interface ShieldConsumedTelemetry extends TelemetryEventBase {
+  targetId: string;
+  shieldInstanceId: string;
+  sourceUnitId: string;
+  sourceSkillId?: string;
+  consumedBySkillId: string;
+  skillCastId?: string;
+  shieldConsumed: number;
+  fixedDamageGenerated: number;
+  remainingShield: number;
+}
+
+export interface StatusChangedTelemetry extends TelemetryEventBase {
+  change: 'apply' | 'refresh' | 'stack' | 'remove';
+  statusInstanceId: string;
+  statusId: string;
+  statusName: string;
+  sourceUnitId?: string;
+  sourceSkillId?: string;
+  targetUnitId: string;
+  stackBefore: number;
+  stackDelta: number;
+  stackAfter: number;
+  durationBefore: number;
+  durationAfter: number;
+  applyReason?: string;
+  removeReason?: string;
+  powerBonusApplied?: number;
+  stackConsumed?: number;
+  affectedSkillCastId?: string;
 }
 
 export interface EnergyChangedTelemetry extends TelemetryEventBase {
@@ -245,9 +372,13 @@ export interface BattleTelemetryCollector {
   onRoundStart?(payload: RoundStartTelemetry): void;
   onActionStart?(payload: ActionStartTelemetry): void;
   onSkillConfirmed?(payload: SkillConfirmedTelemetry): void;
+  onSkillResolved?(payload: SkillResolvedTelemetry): void;
   onDamageResolved?(payload: DamageResolvedTelemetry): void;
   onHealingResolved?(payload: HealingResolvedTelemetry): void;
   onShieldGranted?(payload: ShieldGrantedTelemetry): void;
+  onShieldAbsorbed?(payload: ShieldAbsorbedTelemetry): void;
+  onShieldConsumed?(payload: ShieldConsumedTelemetry): void;
+  onStatusChanged?(payload: StatusChangedTelemetry): void;
   onEnergyChanged?(payload: EnergyChangedTelemetry): void;
   onSwitchResolved?(payload: SwitchResolvedTelemetry): void;
   onRowSwitchResolved?(payload: RowSwitchResolvedTelemetry): void;
