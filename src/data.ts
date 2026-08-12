@@ -108,9 +108,9 @@ export const SPIRITS: SpiritData[] = [
     skillIds: ['M06-S1', 'M06-S2', 'M06-S3'],
     accent: '#2f7c67',
     defaultPosition: 'front',
-    shortDescription: '兼顾回能、定点护盾与全队盾阵维持。',
-    battleStyle: '蓄能冲撞补充妖力，铁壁防护在妖力达到 5 时额外治疗单体，铁甲盾阵延长全队护盾。',
-    playTip: '盾阵期间，护盾不会在精灵正常行动后清空。'
+    shortDescription: '兼顾回能、定点护盾与友方技能节能。',
+    battleStyle: '蓄能冲撞补充妖力，铁壁援护在妖力达到 5 时额外治疗单体，能量转移降低友方下一次技能费用。',
+    playTip: '能量转移不能选择自身，适合交给高费用技能使用者。'
   },
   {
     id: 'P07',
@@ -145,8 +145,8 @@ export const SPIRITS: SpiritData[] = [
     accent: '#527fa0',
     defaultPosition: 'back',
     shortDescription: '提供前排治疗、群体回复和入场首次定点保护。',
-    battleStyle: '铃音守护修复前排，鹿鸣回春铺设回复，灵铃庇佑保护单体。',
-    playTip: '每次入场后的第一次技能若为灵铃庇佑，则该技能为 0 费。'
+    battleStyle: '铃音守护修复前排，鹿鸣回春同时治疗自身与另一名友方，灵铃庇佑保护单体。',
+    playTip: '每次入场后的首次行动若使用灵铃庇佑，该技能实际费用为 1。'
   },
   {
     id: 'P09',
@@ -159,7 +159,7 @@ export const SPIRITS: SpiritData[] = [
     physicalDefense: 93,
     magicDefense: 93,
     speed: 115,
-    skillIds: ['M09-S1', 'M09-S2', 'M09-S3'],
+    skillIds: ['M09-S1', 'M09-S3', 'M09-S2'],
     accent: '#7159a7',
     defaultPosition: 'back',
     shortDescription: '快速补充团队妖力，并通过易伤放大后续输出。',
@@ -192,12 +192,12 @@ export const SKILLS: Record<string, SkillData> = {
     description: '对敌方单体造成物理伤害。'
   },
   'M01-S2': {
-    id: 'M01-S2', name: '炽能连斩', primaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 90, cost: 3, gain: 0,
-    consecutiveUseCostReduction: 1, minimumCost: 0,
-    description: '连续使用时，后续实际费用每次降低 1 点，最低为 0；使用其他技能后重置。'
+    id: 'M01-S2', name: '炽能连斩', primaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 85, cost: 2, gain: 0,
+    consecutiveUseCostReduction: 1, minimumCost: 0, resetConsecutiveUseAtMinimumCost: true,
+    description: '连续使用时实际费用按 2→1→0 变化；0 费成功释放或使用其他技能后重置为 2。'
   },
   'M01-S3': {
-    id: 'M01-S3', name: '烈斩爆发', primaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 250, cost: 6, gain: 0,
+    id: 'M01-S3', name: '烈斩爆发', primaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 180, cost: 6, gain: 0,
     alwaysCrit: true,
     description: '对敌方单体造成物理伤害，本次攻击必定暴击。'
   },
@@ -207,7 +207,7 @@ export const SKILLS: Record<string, SkillData> = {
     description: '造成物理伤害，自身获得 1 层爆发。'
   },
   'M02-S2': {
-    id: 'M02-S2', name: '蓄势迎击', primaryBehavior: 'attack', secondaryBehavior: 'protect', kind: 'attack', damageType: 'physical', target: 'boss', power: 60, cost: 1, gain: 0,
+    id: 'M02-S2', name: '蓄势迎击', primaryBehavior: 'attack', secondaryBehavior: 'protect', kind: 'attack', damageType: 'physical', target: 'boss', power: 55, cost: 1, gain: 0,
     addChargeTurns: 1,
     description: '造成物理伤害，自身获得 1 回合蓄势。'
   },
@@ -217,14 +217,14 @@ export const SKILLS: Record<string, SkillData> = {
     description: '造成物理伤害；自身存在爆发时，本次攻击必定暴击。'
   },
   'M03-S1': {
-    id: 'M03-S1', name: '烈芽打击', primaryBehavior: 'attack', secondaryBehavior: 'recover', kind: 'attack', damageType: 'magic', target: 'boss', power: 30, cost: 0, gain: 0,
-    selfHealPercent: 0.1,
-    description: '造成魔法伤害，并恢复自身 10% 最大生命。'
+    id: 'M03-S1', name: '烈芽打击', primaryBehavior: 'attack', secondaryBehavior: 'recover', kind: 'attack', damageType: 'magic', target: 'boss', power: 25, cost: 0, gain: 0,
+    selfHealPercent: 0.08,
+    description: '造成魔法伤害，并恢复自身 8% 最大生命。'
   },
   'M03-S2': {
-    id: 'M03-S2', name: '生机播种', primaryBehavior: 'recover', kind: 'support', damageType: 'none', target: 'ally-field', cost: 3, gain: 0,
-    healPercent: 0.2, addRegenTurns: 2,
-    description: '使一个场上存活友方恢复 20% 最大生命，并获得 2 回合回复。'
+    id: 'M03-S2', name: '生机播种', primaryBehavior: 'recover', kind: 'support', damageType: 'none', target: 'ally-field', cost: 2, gain: 0,
+    addRegenTurns: 4,
+    description: '使一个场上存活友方获得 4 回合回复；目标每次行动开始时恢复 10% 最大生命。'
   },
   'M03-S3': {
     id: 'M03-S3', name: '繁盛爆弹', primaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 80, cost: 2, gain: 0,
@@ -233,18 +233,18 @@ export const SKILLS: Record<string, SkillData> = {
   },
   'M04-S1': {
     id: 'M04-S1', name: '震击', primaryBehavior: 'attack', secondaryBehavior: 'protect', kind: 'attack', damageType: 'physical', target: 'boss', power: 30, cost: 0, gain: 0,
-    shieldValue: 50,
-    description: '造成物理伤害，自身获得 50 护盾。'
+    shieldValue: 40,
+    description: '造成物理伤害，自身获得 40 护盾。'
   },
   'M04-S2': {
-    id: 'M04-S2', name: '盾压', primaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 80, cost: 2, gain: 0,
+    id: 'M04-S2', name: '盾压', primaryBehavior: 'attack', kind: 'attack', damageType: 'fixed', target: 'boss', cost: 2, gain: 0,
     shieldToFixedDamageRatio: 1,
-    description: '确认技能时消耗自身当前护盾，造成物理伤害并追加等于已消耗护盾的固定伤害。'
+    description: '确认技能时消耗自身当前全部护盾，并造成等于实际消耗护盾量的固定伤害。'
   },
   'M04-S3': {
-    id: 'M04-S3', name: '岩壁守护', primaryBehavior: 'protect', kind: 'support', damageType: 'none', target: 'self', cost: 4, gain: 0,
-    shieldValue: 400,
-    description: '自身获得 400 护盾。'
+    id: 'M04-S3', name: '岩壁守护', primaryBehavior: 'protect', kind: 'support', damageType: 'none', target: 'self', cost: 3, gain: 0,
+    shieldValue: 280,
+    description: '自身获得 280 护盾。'
   },
   'M05-S1': {
     id: 'M05-S1', name: '苔甲冲撞', primaryBehavior: 'protect', secondaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 20, cost: 0, gain: 0,
@@ -252,21 +252,21 @@ export const SKILLS: Record<string, SkillData> = {
     description: '造成物理伤害，我方全体获得 25 护盾。'
   },
   'M05-S2': {
-    id: 'M05-S2', name: '缩壳回春', primaryBehavior: 'recover', kind: 'heal', damageType: 'none', target: 'self', cost: 3, gain: 0,
-    healPercent: 0.4,
-    description: '恢复自身 40% 最大生命。'
+    id: 'M05-S2', name: '缩壳回春', primaryBehavior: 'recover', kind: 'heal', damageType: 'none', target: 'self', cost: 2, gain: 0,
+    healPercent: 0.3,
+    description: '恢复自身 30% 最大生命。'
   },
   'M05-S3': {
     id: 'M05-S3', name: '苍苔壁垒', primaryBehavior: 'protect', kind: 'support', damageType: 'none', target: 'ally-all', cost: 4, gain: 0,
-    teamShieldValue: 200,
-    description: '我方全体获得 200 护盾。'
+    teamShieldValue: 150,
+    description: '我方全体获得 150 护盾。'
   },
   'M06-S1': {
-    id: 'M06-S1', name: '蓄能冲撞', primaryBehavior: 'energy', secondaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 30, cost: 0, gain: 1,
+    id: 'M06-S1', name: '蓄能冲撞', primaryBehavior: 'energy', secondaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 25, cost: 0, gain: 1,
     description: '造成物理伤害，团队获得 1 妖力。'
   },
   'M06-S2': {
-    id: 'M06-S2', name: '铁壁防护', primaryBehavior: 'protect', secondaryBehavior: 'recover', kind: 'support', damageType: 'none', target: 'ally-field', cost: 3, gain: 0,
+    id: 'M06-S2', name: '铁壁援护', primaryBehavior: 'protect', secondaryBehavior: 'recover', kind: 'support', damageType: 'none', target: 'ally-field', cost: 3, gain: 0,
     shieldValue: 200,
     enhanceRules: [{
       condition: { type: 'team_mana_at_least', value: 5 },
@@ -278,24 +278,24 @@ export const SKILLS: Record<string, SkillData> = {
     description: '使一个场上存活友方获得 200 护盾；确认技能时团队妖力达到 5，额外治疗目标 20% 最大生命。'
   },
   'M06-S3': {
-    id: 'M06-S3', name: '铁甲盾阵', primaryBehavior: 'protect', kind: 'support', damageType: 'none', target: 'ally-all', cost: 3, gain: 0,
-    addShieldFormationTurns: 3,
-    description: '我方全体获得 3 回合盾阵。'
+    id: 'M06-S3', name: '能量转移', primaryBehavior: 'energy', kind: 'support', damageType: 'none', target: 'ally-field', excludeSelfTarget: true, cost: 2, gain: 0,
+    addEnergySaving: true,
+    description: '选择自身以外的一个场上存活友方，使其获得节能；目标下一次使用技能时，实际妖力消耗降低 50%（向下取整，最低 0），随后移除节能。'
   },
   'M07-S1': {
-    id: 'M07-S1', name: '月露微光', primaryBehavior: 'recover', secondaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 30, cost: 0, gain: 0,
+    id: 'M07-S1', name: '月露微光', primaryBehavior: 'recover', secondaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 10, cost: 0, gain: 0,
     teamHealPercent: 0.05,
     description: '造成魔法伤害，我方全体恢复各自 5% 最大生命。'
   },
   'M07-S2': {
-    id: 'M07-S2', name: '蚀月爆弹', primaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 130, cost: 2, gain: 0,
+    id: 'M07-S2', name: '蚀月爆弹', primaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 140, cost: 2, gain: 0,
     selfHpCostPercent: 0.1,
     description: '伤害结算前消耗自身 10% 最大生命，最低保留 1 生命；随后造成魔法伤害。'
   },
   'M07-S3': {
-    id: 'M07-S3', name: '满月甘霖', primaryBehavior: 'recover', kind: 'heal', damageType: 'none', target: 'ally-all', cost: 5, gain: 0,
-    teamHealPercent: 0.5,
-    description: '我方全体恢复各自 50% 最大生命。'
+    id: 'M07-S3', name: '满月甘霖', primaryBehavior: 'recover', kind: 'heal', damageType: 'none', target: 'ally-all', cost: 6, gain: 0,
+    teamHealPercent: 0.3,
+    description: '我方全体恢复各自 30% 最大生命。'
   },
   'M08-S1': {
     id: 'M08-S1', name: '铃音守护', primaryBehavior: 'recover', secondaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 25, cost: 0, gain: 0,
@@ -303,14 +303,14 @@ export const SKILLS: Record<string, SkillData> = {
     description: '造成魔法伤害，我方当前前排恢复 8% 最大生命。'
   },
   'M08-S2': {
-    id: 'M08-S2', name: '鹿鸣回春', primaryBehavior: 'recover', kind: 'support', damageType: 'none', target: 'ally-field', cost: 4, gain: 0,
-    healSelfAndTargetPercent: 0.4,
-    description: '使自身与一个场上存活友方分别恢复 40% 最大生命；目标为自身时只恢复一次。'
+    id: 'M08-S2', name: '鹿鸣回春', primaryBehavior: 'recover', kind: 'support', damageType: 'none', target: 'ally-field', excludeSelfTarget: true, cost: 4, gain: 0,
+    healSelfAndTargetPercent: 0.3,
+    description: '选择自身以外的一个场上存活友方，使自身与目标分别恢复 30% 最大生命。'
   },
   'M08-S3': {
     id: 'M08-S3', name: '灵铃庇佑', primaryBehavior: 'recover', secondaryBehavior: 'protect', kind: 'support', damageType: 'none', target: 'ally-field', cost: 4, gain: 0,
-    healFlatValue: 150, shieldValue: 150, firstSkillAfterEntryCostReduction: 4,
-    description: '一个场上存活友方恢复 150 生命并获得 150 护盾；每次入场后的第一次技能若为本技能，则实际费用为 0。'
+    healFlatValue: 150, shieldValue: 150, firstSkillAfterEntryCostReduction: 3,
+    description: '一个场上存活友方恢复 150 生命并获得 150 护盾；每次入场后的首次行动若使用本技能，则实际费用为 1。'
   },
   'M09-S1': {
     id: 'M09-S1', name: '引雷蓄能', primaryBehavior: 'energy', kind: 'support', damageType: 'none', target: 'team-mana', cost: 0, gain: 2,
@@ -326,17 +326,17 @@ export const SKILLS: Record<string, SkillData> = {
     description: '使敌方单体获得 3 回合易伤，受到伤害提高 50%。'
   },
   'M10-S1': {
-    id: 'M10-S1', name: '星辉充能', primaryBehavior: 'energy', secondaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 30, cost: 0, gain: 1,
+    id: 'M10-S1', name: '星辉充能', primaryBehavior: 'energy', secondaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 20, cost: 0, gain: 1,
     description: '造成魔法伤害，团队获得 1 妖力。'
   },
   'M10-S2': {
     id: 'M10-S2', name: '星甲冲击', primaryBehavior: 'protect', secondaryBehavior: 'attack', kind: 'attack', damageType: 'fixed', target: 'boss', cost: 3, gain: 0,
-    fixedDamage: 150, shieldValue: 150,
-    description: '对敌方单体造成 150 固定伤害，自身获得 150 护盾；固定伤害不读取攻防且不暴击。'
+    fixedDamage: 200, shieldValue: 50,
+    description: '对敌方单体造成 200 固定伤害，自身获得 50 护盾；固定伤害不读取攻防且不暴击。'
   },
   'M10-S3': {
-    id: 'M10-S3', name: '星能回流', primaryBehavior: 'energy', kind: 'support', damageType: 'none', target: 'team-mana', cost: 3, gain: 5,
+    id: 'M10-S3', name: '星能回流', primaryBehavior: 'energy', kind: 'support', damageType: 'none', target: 'team-mana', cost: 3, gain: 4,
     firstUseInBattleCostReduction: 3,
-    description: '团队获得 5 妖力；本场第一次使用实际费用为 0，后续恢复为 3 费。'
+    description: '团队获得 4 妖力；本场第一次使用实际费用为 0，后续恢复为 3 费。'
   }
 };

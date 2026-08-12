@@ -5,9 +5,13 @@ import { createServer } from 'vite';
 import { createExperienceRadar } from './experience-metrics.mjs';
 import { writeExperienceArtifacts } from './render-experience-summary.mjs';
 import { fixedTeam, rangeTuning } from './single-boss-config.mjs';
+import { createTenSpiritSpecialtyMetrics } from './ten-spirit-specialty-metrics.mjs';
+import { installTestOnlyBossMirror, sourceBossId } from './test-only-boss-mirrors.mjs';
 import {
   createScoreBreakdown,
   decisionScoreSources,
+  estimateRegenFuture,
+  estimateShieldPressFixedDamage,
   evaluateHunterWoundSwap,
   expectedShieldValue,
   normalizeDecisionSample,
@@ -16,7 +20,8 @@ import {
   scoreShieldFormationFuture,
   scoreWindCutFuture,
   selfAndTargetEffectiveHeal,
-  totalScoreForTendency
+  totalScoreForTendency,
+  usesWeightedDecisionPolicy
 } from './battle-policy.mjs';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -30,14 +35,18 @@ const outputPath = fileURLToPath(new URL(args.output ?? '../validation-artifacts
 const maxStepsPerBattle = Math.max(100, Number(args.maxSteps ?? 2500));
 const experienceEnabled = args.experience === 'true';
 const benchmarkBossId = args.bossId;
+const testOnlySourceBossId = args.testOnlySourceBossId;
 const artifactDirectory = fileURLToPath(new URL(args.artifactDir ?? '../validation-artifacts/', import.meta.url));
 const policy = args.policy ?? 'balanced-v2';
 const playerTendency = args.playerTendency ?? 'balanced';
+const testStrategy = args.testStrategy ?? 'none';
+const specialtyMetricsEnabled = args.specialtyMetrics === 'true';
+const aiStrategy = args.aiStrategy ?? (testStrategy === 'refresh_seek_test' ? 'refresh_seek_test' : playerTendency);
 const rosterMode = args.roster ?? 'random';
 const fixedTeamId = args.team;
 const tuningId = args.tuning;
 const debugDecisions = args['debug-decisions'] === 'true' || args.debugDecisions === 'true';
-const decisionSampleLimit = Math.max(0, Number(args.decisionSampleLimit ?? 300));
+const decisionSampleLimit = Math.max(0, Number(args.decisionSampleLimit ?? 120));
 const diagnosticTraceEnabled = args['diagnostic-trace'] === 'true' || args.diagnosticTrace === 'true';
 const diagnosticTracePath = fileURLToPath(new URL(
   args.diagnosticTraceOutput ?? '../validation-artifacts/diagnostic-trace.json',
@@ -45,6 +54,7 @@ const diagnosticTracePath = fileURLToPath(new URL(
 ));
 if (!['balanced-v2', 'balanced-v3', 'balanced-v3-neutral', 'balanced-v4-hunter-aware'].includes(policy)) throw new Error(`Unknown policy: ${policy}`);
 playerTendencyProfile(playerTendency);
+if (!['none', 'refresh_seek_test'].includes(testStrategy)) throw new Error(`Unknown test strategy: ${testStrategy}`);
 if (!['random', 'fixed'].includes(rosterMode)) throw new Error(`Unknown roster mode: ${rosterMode}`);
 if (rosterMode === 'fixed' && !fixedTeamId) throw new Error('Fixed roster requires --team.');
 
@@ -71,6 +81,17 @@ try {
   const { MONSTERS, MONSTER_SKILLS } = monsterDataModule;
   const { calculateMonsterStats } = monsterSystemModule;
   const config = battleSystemConfig();
+  const testOnlyMirror = testOnlySourceBossId ? installTestOnlyBossMirror({
+    sourceId: testOnlySourceBossId,
+    monsters: MONSTERS,
+    config,
+    calculateMonsterStats,
+    maxHp: optionalNumber(args.testOnlyBossHp),
+    attack: optionalNumber(args.testOnlyBossAttack)
+  }) : null;
+  if (testOnlyMirror && benchmarkBossId !== testOnlyMirror.id) {
+    throw new Error(`TEST_ONLY benchmark must use ${testOnlyMirror.id}, received ${benchmarkBossId}`);
+  }
   if (benchmarkBossId && !MONSTERS[benchmarkBossId]) throw new Error(`Unknown benchmark boss: ${benchmarkBossId}`);
   const spiritInfo = Object.fromEntries(config.creatureConfig.map((spirit) => [spirit.id, spirit]));
   const presetTuning = tuningId ? rangeTuning(tuningId) : null;
@@ -88,6 +109,17 @@ try {
     ? await readOptionalJson(fileURLToPath(new URL('../validation-baselines/experience-baseline.json', import.meta.url)))
     : null;
   const experienceRadar = experienceEnabled ? createExperienceRadar(config, { runs: runCount, seedBase: baseSeed, monsters: MONSTERS }) : null;
+  const specialtyMetrics = specialtyMetricsEnabled ? createTenSpiritSpecialtyMetrics(config, {
+    runs: runCount,
+    seedBase: baseSeed,
+    bossId: benchmarkBossId ?? null,
+    teamId: fixedTeamId ?? 'RANDOM',
+    policy,
+    playerTendency,
+    testStrategy,
+    aiStrategy,
+    generatedAt: new Date().toISOString()
+  }) : null;
   const diagnosticTraces = [];
   const diagnosticSkillMetadata = Object.fromEntries(Object.values(config.skillConfig).map((skill) => [skill.id, {
     name: skill.name,
@@ -102,11 +134,14 @@ try {
     benchmarkBossId: benchmarkBossId ?? null,
     policy,
     playerTendency,
+    testStrategy,
     rosterMode,
     fixedTeamId: fixedTeamId ?? null,
     tuningId: tuningId ?? null
   });
   const decisionSamples = [];
+  const decisionSampleRandom = lcg(baseSeed ^ 0x51ed270b);
+  let decisionSamplesSeen = 0;
   for (let runIndex = 0; runIndex < runCount; runIndex += 1) {
     const runSeed = (baseSeed + Math.imul(runIndex + 1, 7919)) >>> 0;
     const policyRandom = lcg(runSeed ^ 0x9e3779b9);
@@ -140,6 +175,13 @@ try {
         policy,
         playerTendency
       });
+      const specialtyHandle = specialtyMetrics?.createBattleCollector({
+        seed: runSeed,
+        bossId: benchmarkBossId ?? resultBossId(battleConfig.enemies[0]),
+        bossName: MONSTERS[benchmarkBossId ?? resultBossId(battleConfig.enemies[0])]?.name ?? benchmarkBossId ?? resultBossId(battleConfig.enemies[0]),
+        teamId: fixedTeamId ?? 'RANDOM',
+        aiStrategy
+      });
       const diagnosticHandle = diagnosticTraceEnabled ? createDiagnosticTrace({
         seed: runSeed,
         stage: stageIndex + 1,
@@ -154,7 +196,7 @@ try {
         playerSnapshot: snapshot,
         enemies: battleConfig.enemies,
         battleSeed: `${runSeed}:stage:${stageIndex + 1}`,
-        telemetry: combineTelemetryCollectors(telemetryHandle?.collector, diagnosticHandle?.collector)
+        telemetry: combineTelemetryCollectors(telemetryHandle?.collector, diagnosticHandle?.collector, specialtyHandle?.collector)
       });
       const result = simulateBattle(
         game,
@@ -165,18 +207,27 @@ try {
         experienceRadar,
         policy,
         playerTendency,
+        testStrategy,
         (sample) => {
           diagnosticHandle?.recordDecision(sample);
-          if (debugDecisions && decisionSamples.length < decisionSampleLimit) {
-            decisionSamples.push({ seed: runSeed, stage: stageIndex + 1, ...sample });
+          if (debugDecisions && decisionSampleLimit > 0) {
+            decisionSamplesSeen += 1;
+            const record = { seed: runSeed, stage: stageIndex + 1, ...sample };
+            if (decisionSamples.length < decisionSampleLimit) decisionSamples.push(record);
+            else {
+              const replacementIndex = Math.floor(decisionSampleRandom() * decisionSamplesSeen);
+              if (replacementIndex < decisionSampleLimit) decisionSamples[replacementIndex] = record;
+            }
           }
-        }
+        },
+        specialtyHandle?.observeDecision
       );
       result.stage = stageIndex + 1;
       result.enemyIds = battleConfig.enemies.map((enemy) => typeof enemy === 'string' ? enemy : enemy.enemyId);
       runResult.stages.push(result);
       aggregateBattle(summary, result, stageIndex + 1);
       if (telemetryHandle) experienceRadar.finishBattle(telemetryHandle, result, game);
+      if (specialtyHandle) specialtyMetrics.finishBattle(specialtyHandle, result, game);
       if (diagnosticHandle) diagnosticTraces.push(diagnosticHandle.finish(result));
 
       if (stageIndex === dungeon.battles.length - 1) {
@@ -216,6 +267,9 @@ try {
   if (diagnosticTraceEnabled) {
     await mkdir(dirname(diagnosticTracePath), { recursive: true });
     await writeFile(diagnosticTracePath, JSON.stringify(diagnosticTraces, null, 2), 'utf8');
+  }
+  if (specialtyMetrics) {
+    await writeFile(join(artifactDirectory, 'specialty-summary.json'), JSON.stringify(specialtyMetrics.finalize(), null, 2), 'utf8');
   }
   if (experienceRadar && thresholds) {
     const experienceReport = experienceRadar.finalize(summary, thresholds, baseline, {
@@ -311,6 +365,7 @@ function createDiagnosticTrace(context, attackSkillIds, skillMetadata) {
           if (isAttack) attacksAfterSecondAmplification += 1;
         }
       },
+      onSkillResolved: (event) => pushEvent('skill_resolved', event),
       onDamageResolved: (event) => {
         const entry = roundEntry(event.round);
         if (event.sourceSide === 'player') entry.damageToBoss += event.actual;
@@ -328,6 +383,9 @@ function createDiagnosticTrace(context, attackSkillIds, skillMetadata) {
         roundEntry(event.round).shieldGranted += event.granted;
         pushEvent('shield', event);
       },
+      onShieldAbsorbed: (event) => pushEvent('shield_absorbed', event),
+      onShieldConsumed: (event) => pushEvent('shield_consumed', event),
+      onStatusChanged: (event) => pushEvent('status_changed', event),
       onEnergyChanged: (event) => pushEvent('energy', event),
       onSwitchResolved: (event) => pushEvent('switch', event),
       onRowSwitchResolved: (event) => pushEvent('row_switch', event),
@@ -395,6 +453,10 @@ function optionalNumber(value) {
   return parsed;
 }
 
+function resultBossId(enemy) {
+  return typeof enemy === 'string' ? enemy : enemy.enemyId;
+}
+
 function parseSkillPowerOverrides(value) {
   if (!value) return undefined;
   return Object.fromEntries(String(value).split(',').map((entry) => {
@@ -434,7 +496,7 @@ function applySimulationTuning(stage, tuning, monsters, calculateStats) {
   };
 }
 
-function simulateBattle(game, config, spiritInfo, random, maxSteps, experienceRadar = null, policy = 'balanced-v2', playerTendency = 'balanced', recordDecision = null) {
+function simulateBattle(game, config, spiritInfo, random, maxSteps, experienceRadar = null, policy = 'balanced-v2', playerTendency = 'balanced', testStrategy = 'none', recordDecision = null, observeSpecialtyDecision = null) {
   const result = {
     victory: false,
     phase: game.state.phase,
@@ -490,8 +552,8 @@ function simulateBattle(game, config, spiritInfo, random, maxSteps, experienceRa
             }
           }
         }
-        const v3Policy = policy === 'balanced-v3' || policy === 'balanced-v3-neutral' || policy === 'balanced-v4-hunter-aware';
-        const choice = chooseSkill(game, config, spiritInfo, actor.id, random, policy, playerTendency, v3Policy ? null : recordDecision);
+        const v3Policy = usesWeightedDecisionPolicy(policy);
+        const choice = chooseSkill(game, config, spiritInfo, actor.id, random, policy, playerTendency, testStrategy, v3Policy ? null : recordDecision, observeSpecialtyDecision);
         if (!choice) throw new Error(`no usable skill for ${actor.id}`);
         if (v3Policy && game.state.actionContext === 'normal') {
           const alternatives = [choice, ...v3NonSkillCandidates(
@@ -500,18 +562,21 @@ function simulateBattle(game, config, spiritInfo, random, maxSteps, experienceRa
             actor.id,
             policy !== 'balanced-v3-neutral',
             playerTendency,
-            policy === 'balanced-v4-hunter-aware'
+            policy === 'balanced-v4-hunter-aware',
+            testStrategy
           )];
           alternatives.sort((a, b) => b.score - a.score);
-          recordDecision?.({
+          const fullDecision = {
             policy,
             playerTendency,
             round: game.state.round.index,
             actorId: actor.id,
             mana: game.state.mana.current,
             selected: normalizeDecisionSample(alternatives[0]),
-            candidates: alternatives.slice(0, 6).map(normalizeDecisionSample)
-          });
+            candidates: alternatives.map(normalizeDecisionSample)
+          };
+          observeSpecialtyDecision?.(fullDecision);
+          recordDecision?.({ ...fullDecision, candidates: fullDecision.candidates.slice(0, 6) });
           if (alternatives[0].action === 'swap') {
             const swapped = game.swapWithBench(alternatives[0].targetId);
             if (!swapped.ok) throw new Error(`v3 tactical swap failed: ${swapped.message ?? 'unknown'}`);
@@ -557,7 +622,7 @@ function simulateBattle(game, config, spiritInfo, random, maxSteps, experienceRa
   return result;
 }
 
-function v3NonSkillCandidates(game, spiritInfo, actorId, mechanicAware = true, playerTendency = 'balanced', hunterAware = false) {
+function v3NonSkillCandidates(game, spiritInfo, actorId, mechanicAware = true, playerTendency = 'balanced', hunterAware = false, testStrategy = 'none') {
   const actor = game.getSpirit(actorId);
   const actorInfo = spiritInfo[actorId];
   const actorRatio = actor.hp / Math.max(1, actorInfo.maxHp);
@@ -583,6 +648,18 @@ function v3NonSkillCandidates(game, spiritInfo, actorId, mechanicAware = true, p
       }
     }
     if (!threatened && actorRatio >= 0.25) breakdown.delayRisk -= 90;
+    if (testStrategy === 'refresh_seek_test' && !threatened) {
+      if (actorId === 'P08' && !actor.entrySkillAvailable) {
+        breakdown.genericRule += 900;
+        breakdown.delayRisk -= 20;
+      } else if (id === 'P08' && actorId !== 'P08') {
+        breakdown.genericRule += 900;
+        breakdown.delayRisk -= 20;
+      }
+    }
+    if (testStrategy === 'refresh_seek_test' && actorId === 'P08' && actor.entrySkillAvailable) {
+      breakdown.delayRisk -= 1000;
+    }
     return { action: 'swap', targetId: id, score: totalScoreForTendency(breakdown, playerTendency), breakdown, scoreSources: decisionScoreSources(breakdown, playerTendency) };
   });
 
@@ -599,7 +676,7 @@ function hunterWoundSwapResponse(game, actorId, replacementId) {
   const replacement = game.getSpirit(replacementId);
   const stacks = actor.statuses['hunter-wound']?.stacks ?? 0;
   if (stacks <= 0) return null;
-  const enemyId = game.getActiveEnemyIds().find((id) => game.getEnemy(id)?.definitionId === 'RANGE_BOSS_SHOOTER');
+  const enemyId = game.getActiveEnemyIds().find((id) => sourceBossId(game.getEnemy(id)?.definitionId) === 'RANGE_BOSS_SHOOTER');
   if (!enemyId) return null;
   const currentPreview = game.enemySkillDamagePreview(enemyId, 'RANGE_BOSS_SKYFALL', actorId);
   const replacementPreview = game.enemySkillDamagePreview(enemyId, 'RANGE_BOSS_SKYFALL', replacementId);
@@ -622,7 +699,7 @@ async function readOptionalJson(path) {
   }
 }
 
-function chooseSkill(game, config, spiritInfo, actorId, random, policy = 'balanced-v2', playerTendency = 'balanced', recordDecision = null) {
+function chooseSkill(game, config, spiritInfo, actorId, random, policy = 'balanced-v2', playerTendency = 'balanced', testStrategy = 'none', recordDecision = null, observeDecision = null) {
   const actor = game.getSpirit(actorId);
   const actorData = spiritInfo[actorId];
   const activeIds = game.getActiveSpiritIds();
@@ -636,24 +713,39 @@ function chooseSkill(game, config, spiritInfo, actorId, random, policy = 'balanc
   for (const skillId of actorData.skillIds) {
     const skill = config.skillConfig[skillId];
     if (!skill) continue;
-    const targetIds = skill.target === 'boss'
-      ? game.getLegalEnemyTargetIds()
-      : skill.target === 'ally-field'
-        ? game.getHealTargets()
-        : [undefined];
+    const targetIds = skill.target === 'boss' || skill.target === 'ally-field'
+      ? game.getSkillTargetIds(skill)
+      : [undefined];
     for (const targetId of targetIds) {
       const button = game.getSkillButtonState(skill, actor, targetId);
       if (!button.usable) continue;
-      const v3Policy = policy === 'balanced-v3' || policy === 'balanced-v3-neutral';
+      const v3Policy = usesWeightedDecisionPolicy(policy);
       const evaluated = v3Policy
-        ? skillScoreV3({ game, config, spiritInfo, skill, button, actorId, targetId, allies, team, minRatio, averageRatio, mechanicAware: policy !== 'balanced-v3-neutral', playerTendency })
+        ? skillScoreV3({ game, config, spiritInfo, skill, button, actorId, targetId, allies, team, minRatio, averageRatio, mechanicAware: policy !== 'balanced-v3-neutral', playerTendency, testStrategy })
         : { score: skillScore({ game, spiritInfo, skill, button, actorId, targetId, allies, minRatio, averageRatio }), breakdown: null };
       let score = evaluated.score;
       score += random() * 0.01;
-      candidates.push({ skill, targetId, score, breakdown: evaluated.breakdown, scoreSources: evaluated.breakdown ? decisionScoreSources(evaluated.breakdown, playerTendency) : null });
+      candidates.push({
+        skill,
+        targetId,
+        score,
+        breakdown: evaluated.breakdown,
+        diagnostics: evaluated.diagnostics,
+        scoreSources: evaluated.breakdown ? decisionScoreSources(evaluated.breakdown, playerTendency) : null
+      });
     }
   }
   const sorted = candidates.sort((a, b) => b.score - a.score);
+  observeDecision?.({
+    policy,
+    playerTendency,
+    round: game.state.round.index,
+    actorId,
+    mana: game.state.mana.current,
+    selected: sorted[0] ? normalizeDecisionSample(sorted[0]) : null,
+    candidates: sorted.map(normalizeDecisionSample),
+    stage: 'skill-only'
+  });
   if (recordDecision && sorted.length > 0) {
     recordDecision({
       policy,
@@ -668,20 +760,47 @@ function chooseSkill(game, config, spiritInfo, actorId, random, policy = 'balanc
   return sorted[0] ?? null;
 }
 
-function skillScoreV3({ game, config, spiritInfo, skill, button, actorId, targetId, allies, team, minRatio, averageRatio, mechanicAware = true, playerTendency = 'balanced' }) {
+function skillScoreV3({ game, config, spiritInfo, skill, button, actorId, targetId, allies, team, minRatio, averageRatio, mechanicAware = true, playerTendency = 'balanced', testStrategy = 'none' }) {
   const breakdown = createScoreBreakdown();
+  const diagnostics = {};
   const actor = game.getSpirit(actorId);
   const actorData = spiritInfo[actorId];
   const mana = game.state.mana.current;
   const manaValue = mana <= 2 ? 52 : mana <= 5 ? 30 : 12;
   const enemy = targetId ? game.getEnemy(targetId) : game.state.boss;
   const attackStat = skill.damageType === 'physical' ? actorData.physicalAttack : actorData.magicAttack;
-  const expectedDamage = skill.kind === 'attack'
-    ? skill.fixedDamage ?? Math.max(1, Math.ceil(button.powerTotal * attackStat / 100))
+  const shieldPressFixedDamage = skill.shieldToFixedDamageRatio
+    ? estimateShieldPressFixedDamage({ currentShield: actor.shieldValue, conversionRatio: skill.shieldToFixedDamageRatio })
     : 0;
+  const expectedDamage = skill.kind === 'attack'
+    ? shieldPressFixedDamage || skill.fixedDamage || Math.max(1, Math.ceil(button.powerTotal * attackStat / 100))
+    : 0;
+  if (skill.shieldToFixedDamageRatio) {
+    diagnostics.shieldPressConsumableShield = actor.shieldValue;
+    diagnostics.shieldPressExpectedFixedDamage = shieldPressFixedDamage;
+  }
 
   breakdown.energyValue += button.manaGainActual * manaValue;
   breakdown.energyCostPenalty -= button.actualCost * (mana <= 3 ? 20 : mana >= 8 ? 4 : 9);
+
+  if (skill.addEnergySaving && targetId) {
+    const target = game.getSpirit(targetId);
+    const targetSkills = spiritInfo[targetId]?.skillIds ?? [];
+    const costs = targetSkills.map((skillId) => {
+      const targetSkill = config.skillConfig[skillId];
+      return targetSkill ? game.skillActualCost(targetSkill, mana, target) : 0;
+    });
+    const originalCost = Math.max(0, ...costs);
+    const actualCost = Math.floor(originalCost * 0.5);
+    const saved = Math.max(0, originalCost - actualCost);
+    diagnostics.energySavingTargetId = targetId;
+    diagnostics.energySavingOriginalCost = originalCost;
+    diagnostics.energySavingEstimatedCost = actualCost;
+    diagnostics.energySavingEstimatedSaved = saved;
+    if (target.statuses['energy-saving']) breakdown.delayRisk -= 120;
+    else if (saved > 0) breakdown.energyValue += saved * manaValue;
+    else breakdown.delayRisk -= 80;
+  }
 
   if (skill.kind === 'attack') {
     breakdown.immediateDamage += 45 + expectedDamage;
@@ -711,6 +830,7 @@ function skillScoreV3({ game, config, spiritInfo, skill, button, actorId, target
       const ratio = actor.hp / actorData.maxHp;
       breakdown.delayRisk -= ratio < 0.35 ? 180 : 22;
     }
+    if (skill.shieldToFixedDamageRatio && shieldPressFixedDamage === 0) breakdown.delayRisk -= 120;
   }
 
   const healing = estimateSkillHealing(game, spiritInfo, skill, actorId, targetId);
@@ -723,6 +843,9 @@ function skillScoreV3({ game, config, spiritInfo, skill, button, actorId, target
     if (meaningfullyInjured >= 2 && targetId !== actorId) breakdown.genericRule += 500;
     else if (targetId !== actorId && healing.effective > 0) breakdown.genericRule += 250;
     else if (meaningfullyInjured < 2) breakdown.delayRisk -= 70;
+  }
+  if (testStrategy === 'refresh_seek_test' && skill.id === 'M08-S3' && actor.entrySkillAvailable) {
+    breakdown.genericRule += 1200;
   }
 
   const shielding = estimateSkillShielding(game, spiritInfo, skill, actorId, targetId);
@@ -743,7 +866,21 @@ function skillScoreV3({ game, config, spiritInfo, skill, button, actorId, target
 
   if (skill.addRegenTurns && targetId) {
     const target = game.getSpirit(targetId);
-    breakdown.futureMitigation += target.statuses.regen ? 4 : 58;
+    const targetInfo = spiritInfo[targetId];
+    const front = game.state.slots.some((slot) => slot.spiritId === targetId && slot.row === 'front');
+    const regen = estimateRegenFuture({
+      currentHp: target.hp,
+      maxHp: targetInfo.maxHp,
+      appliedTurns: skill.addRegenTurns,
+      existingTurns: target.statuses.regen?.duration ?? 0,
+      expectedIncomingDamage: expectedTelegraphDamage(game) || 180,
+      isFront: front
+    });
+    breakdown.effectiveHealing += regen.expectedEffectiveHealing * 0.9;
+    breakdown.futureMitigation += regen.expectedTriggers * 12;
+    diagnostics.regenAvailableTriggers = regen.availableTriggers;
+    diagnostics.regenExpectedTriggers = regen.expectedTriggers;
+    diagnostics.regenExpectedEffectiveHealing = regen.expectedEffectiveHealing;
   }
   if (skill.addBossVulnerabilityTurns) breakdown.futureDamage += enemy?.statuses?.vulnerable ? 5 : 135;
 
@@ -773,7 +910,7 @@ function skillScoreV3({ game, config, spiritInfo, skill, button, actorId, target
     if (skill.kind === 'attack') breakdown.antiStall += antiStall;
     else breakdown.antiStall -= antiStall * 0.65;
   }
-  return { score: totalScoreForTendency(breakdown, playerTendency), breakdown };
+  return { score: totalScoreForTendency(breakdown, playerTendency), breakdown, diagnostics };
 }
 
 function estimateSkillHealing(game, spiritInfo, skill, actorId, targetId) {
@@ -854,7 +991,7 @@ function isTelegraphTarget(game, spiritId) {
 }
 
 function currentMagePulsePower(game) {
-  const mageId = game.getActiveEnemyIds().find((id) => game.getEnemy(id)?.definitionId === 'MAGE_BOSS');
+  const mageId = game.getActiveEnemyIds().find((id) => sourceBossId(game.getEnemy(id)?.definitionId) === 'MAGE_BOSS');
   if (!mageId) return 0;
   return game.enemyDetailView(mageId)?.skills.find((skill) => skill.id === 'MAGE_BOSS_ARCANE_BOLT')?.currentPower ?? 0;
 }
@@ -869,8 +1006,12 @@ function skillScore({ game, spiritInfo, skill, button, actorId, targetId, allies
 
   if (skill.kind === 'attack') {
     const attackStat = skill.damageType === 'physical' ? actorData.physicalAttack : actorData.magicAttack;
-    const expectedDamage = skill.fixedDamage ?? Math.max(1, button.powerTotal * attackStat / 100);
+    const shieldPressFixedDamage = skill.shieldToFixedDamageRatio
+      ? estimateShieldPressFixedDamage({ currentShield: actor.shieldValue, conversionRatio: skill.shieldToFixedDamageRatio })
+      : 0;
+    const expectedDamage = shieldPressFixedDamage || skill.fixedDamage || Math.max(1, button.powerTotal * attackStat / 100);
     score += 55 + expectedDamage;
+    if (skill.shieldToFixedDamageRatio && shieldPressFixedDamage === 0) score -= 120;
     if (skill.alwaysCrit || skill.fullManaCrit || skill.highHpCritThreshold || skill.critIfDamageAmp) score += 20;
     if (button.enhanced) score += 35;
     if (skill.addDamageAmpStacks || skill.addChargeTurns) score += 24;
@@ -935,7 +1076,18 @@ function supportScore(game, spiritInfo, skill, actorId, targetId, minRatio, aver
   else if (heal > 0 && averageRatio < 0.65) score += 70;
   if (heal === 0 && !skill.shieldValue && !skill.teamShieldValue && !skill.addShieldFormationTurns && skill.gain <= 0) score -= 80;
   if (skill.addRegenTurns && targetId) {
-    score += game.getSpirit(targetId).statuses.regen ? 5 : 65;
+    const target = game.getSpirit(targetId);
+    const targetInfo = spiritInfo[targetId];
+    const front = game.state.slots.some((slot) => slot.spiritId === targetId && slot.row === 'front');
+    const regen = estimateRegenFuture({
+      currentHp: target.hp,
+      maxHp: targetInfo.maxHp,
+      appliedTurns: skill.addRegenTurns,
+      existingTurns: target.statuses.regen?.duration ?? 0,
+      expectedIncomingDamage: expectedTelegraphDamage(game) || 180,
+      isFront: front
+    });
+    score += regen.expectedEffectiveHealing * 0.9 + regen.expectedTriggers * 12;
   }
   if (skill.addShieldFormationTurns) {
     const alreadyActive = activeIds.some((id) => game.getSpirit(id).statuses['shield-formation']);

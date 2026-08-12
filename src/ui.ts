@@ -701,8 +701,8 @@ export class BattleUI {
     if (runtime.damageAmpStacks > 0) growths.push({ label: `爆发 ${runtime.damageAmpStacks}`, detail: statusDescription('damage-amp') });
     if (runtime.chargeTurns > 0 || runtime.freshChargeTurns > 0) growths.push({ label: '蓄势', detail: statusDescription('charge') });
     if (runtime.regenTurns > 0 || runtime.freshRegenTurns > 0) growths.push({ label: `回复 ${Math.max(runtime.regenTurns, runtime.freshRegenTurns)}`, detail: statusDescription('regen') });
-    if (runtime.shieldValue > 0) growths.push({ label: `护盾 ${runtime.shieldValue}`, detail: '优先吸收受到的伤害；没有盾阵时，持有者正常行动结束会清除既有护盾。' });
-    if (runtime.statuses['shield-formation']) growths.push({ label: `盾阵 ${runtime.statuses['shield-formation'].duration}`, detail: statusDescription('shield-formation') });
+    if (runtime.shieldValue > 0) growths.push({ label: `护盾 ${runtime.shieldValue}`, detail: '优先吸收受到的伤害；持有者正常行动结束会清除既有护盾。' });
+    if (runtime.statuses['energy-saving']) growths.push({ label: '节能', detail: statusDescription('energy-saving') });
     Object.entries(runtime.skillPowerGrowth)
       .filter(([, value]) => value > 0)
       .forEach(([skillId, value]) => {

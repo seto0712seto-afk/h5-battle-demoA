@@ -16,6 +16,10 @@ export const BALANCED_V3_COMPONENTS = [
 
 export const PLAYER_TENDENCY_IDS = ['balanced', 'offense', 'defense'];
 
+export function usesWeightedDecisionPolicy(policy) {
+  return ['balanced-v3', 'balanced-v3-neutral', 'balanced-v4-hunter-aware'].includes(policy);
+}
+
 export const PLAYER_TENDENCY_PROFILES = {
   balanced: {
     id: 'balanced',
@@ -136,6 +140,37 @@ export function expectedShieldValue({ currentShield, incomingDamage, survivalNee
   return useful * (0.7 + clamp01(survivalNeed) * 0.7) * (isFront ? 1.1 : 1);
 }
 
+export function estimateRegenFuture({
+  currentHp,
+  maxHp,
+  appliedTurns,
+  existingTurns = 0,
+  expectedIncomingDamage = 0,
+  isFront = false,
+  healPercent = 0.1
+}) {
+  const availableTriggers = Math.max(0, Math.floor(appliedTurns) - Math.max(0, Math.floor(existingTurns)));
+  const healPerTrigger = Math.floor(Math.max(0, maxHp) * Math.max(0, healPercent));
+  if (availableTriggers === 0 || healPerTrigger === 0 || currentHp <= 0) {
+    return { availableTriggers, expectedTriggers: 0, expectedEffectiveHealing: 0, healPerTrigger };
+  }
+  const incomingPerTrigger = Math.max(0, expectedIncomingDamage) * (isFront ? 0.35 : 0.18);
+  const survivalProbability = clamp01(currentHp / Math.max(1, currentHp + incomingPerTrigger * availableTriggers));
+  const expectedTriggers = availableTriggers * survivalProbability;
+  const currentMissingHp = Math.max(0, maxHp - currentHp);
+  const expectedMissingHp = currentMissingHp + incomingPerTrigger * expectedTriggers;
+  return {
+    availableTriggers,
+    expectedTriggers,
+    expectedEffectiveHealing: Math.min(healPerTrigger * expectedTriggers, expectedMissingHp),
+    healPerTrigger
+  };
+}
+
+export function estimateShieldPressFixedDamage({ currentShield, conversionRatio = 0 }) {
+  return Math.max(0, Math.ceil(Math.max(0, currentShield) * Math.max(0, conversionRatio)));
+}
+
 export function evaluateHunterWoundSwap({
   stacks,
   currentHp,
@@ -161,7 +196,8 @@ export function normalizeDecisionSample(candidate) {
     targetId: candidate.targetId ?? null,
     score: round(candidate.score),
     scoreSources: Object.fromEntries(Object.entries(candidate.scoreSources ?? {}).map(([key, value]) => [key, round(value)])),
-    breakdown: Object.fromEntries(BALANCED_V3_COMPONENTS.map((key) => [key, round(candidate.breakdown?.[key] ?? 0)]))
+    breakdown: Object.fromEntries(BALANCED_V3_COMPONENTS.map((key) => [key, round(candidate.breakdown?.[key] ?? 0)])),
+    diagnostics: Object.fromEntries(Object.entries(candidate.diagnostics ?? {}).map(([key, value]) => [key, typeof value === 'number' ? round(value) : value]))
   };
 }
 

@@ -47,6 +47,28 @@ test('legacy telemetry is normalized to the complete unified event shape', () =>
   }
 });
 
+test('extended skill, shield and status telemetry maps into the shared event protocol without duplicate resolution', () => {
+  const events = normalizeTraceEvents({
+    battleId: 'extended-events',
+    seed: 7,
+    events: [
+      { type: 'battle_start' },
+      { type: 'action_start', round: 1, unitId: 'P04', side: 'player' },
+      { type: 'skill_confirmed', round: 1, actorId: 'P04', skillId: 'M04-S2', skillCastId: 'cast-1', actualCost: 2 },
+      { type: 'shield_consumed', round: 1, targetId: 'P04', sourceUnitId: 'P04', sourceSkillId: 'M04-S3', consumedBySkillId: 'M04-S2', shieldConsumed: 300 },
+      { type: 'status_changed', round: 1, change: 'apply', statusInstanceId: 'status-1', statusId: 'vulnerable', sourceUnitId: 'P09', sourceSkillId: 'M09-S3', targetUnitId: 'enemy@1', stackDelta: 1 },
+      { type: 'shield_absorbed', round: 1, targetId: 'P04', sourceUnitId: 'P06', sourceSkillId: 'M06-S2', absorbedDamage: 80 },
+      { type: 'skill_resolved', round: 1, actorId: 'P04', skillId: 'M04-S2', skillCastId: 'cast-1', actualCost: 2 },
+      { type: 'battle_end', round: 1, result: 'victory' }
+    ]
+  });
+  assert.equal(validateUnifiedEvents(events).length, 0);
+  assert.equal(events.filter((event) => event.eventType === 'skill_resolve').length, 1);
+  assert.equal(events.find((event) => event.eventType === 'shield_consume').value, 300);
+  assert.equal(events.find((event) => event.eventType === 'shield_absorb').skillId, 'M06-S2');
+  assert.equal(events.find((event) => event.eventType === 'status_apply').statusId, 'vulnerable');
+});
+
 test('generic engine analyzes a config-only boss without report code branches', () => {
   assert.deepEqual(validateBossMechanicConfig(bossConfig), []);
   const mainGroups = [group('RANDOM', trace(1)), group('TEAM-BALANCED', trace(2), 'fixed')];

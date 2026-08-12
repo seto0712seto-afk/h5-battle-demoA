@@ -90,6 +90,50 @@ test('指标聚合区分实际治疗、溢出、护盾、妖力、换宠和死�
   assert.equal(report.spirits[spirit.id].deaths, 1);
 });
 
+test('专项技能指标直接使用技能实例、护盾实例和状态实例归因', () => {
+  const config = battleSystemConfig();
+  const team = ['P06', 'P08', 'P09', 'P10'];
+  const radar = createExperienceRadar(config, { runs: 1, seedBase: 20 });
+  radar.startRun({ seed: 21, team });
+  const handle = radar.createBattleCollector({ seed: 21, stage: 1, team });
+  const collector = handle.collector;
+  collector.onBattleStart({ seed: 21, selectedSpiritIds: team, activeSpiritIds: ['P06', 'P08', 'P09'], enemyIds: ['enemy@1'], enemyDefinitionIds: ['enemy'], mana: 0, maxMana: 10 });
+
+  collector.onSkillConfirmed({ round: 1, actorId: 'P06', skillId: 'M06-S2', skillCastId: 'cast-iron', configuredCost: 3, actualCost: 3, manaBefore: 5, enhanced: true, targetDependent: true, energyGainRequested: 0, stateBeforeCast: {} });
+  collector.onHealingResolved({ round: 1, actorId: 'P06', skillId: 'M06-S2', skillCastId: 'cast-iron', targetId: 'P06', attempted: 77, effective: 60, overheal: 17 });
+  collector.onShieldGranted({ round: 1, actorId: 'P06', skillId: 'M06-S2', skillCastId: 'cast-iron', shieldInstanceId: 'shield-iron', targetId: 'P06', attempted: 200, granted: 200, mode: 'stacking' });
+  collector.onShieldAbsorbed({ round: 2, targetId: 'P06', shieldInstanceId: 'shield-iron', sourceUnitId: 'P06', sourceSkillId: 'M06-S2', absorbedDamage: 100, remainingShield: 100, incomingDamageBeforeShield: 100, hpDamageAfterShield: 0 });
+
+  collector.onSkillConfirmed({ round: 2, actorId: 'P08', skillId: 'M08-S3', skillCastId: 'cast-bell', configuredCost: 4, actualCost: 0, manaBefore: 4, enhanced: true, targetDependent: true, energyGainRequested: 0, isFreeCast: true, freeCastReason: 'first_skill_after_entry', stateBeforeCast: { entrySkillAvailable: true } });
+  collector.onHealingResolved({ round: 2, actorId: 'P08', skillId: 'M08-S3', skillCastId: 'cast-bell', targetId: 'P08', attempted: 150, effective: 120, overheal: 30 });
+  collector.onShieldGranted({ round: 2, actorId: 'P08', skillId: 'M08-S3', skillCastId: 'cast-bell', shieldInstanceId: 'shield-bell', targetId: 'P08', attempted: 150, granted: 150, mode: 'stacking' });
+  collector.onShieldAbsorbed({ round: 3, targetId: 'P08', shieldInstanceId: 'shield-bell', sourceUnitId: 'P08', sourceSkillId: 'M08-S3', absorbedDamage: 75, remainingShield: 75, incomingDamageBeforeShield: 90, hpDamageAfterShield: 15 });
+
+  collector.onSkillConfirmed({ round: 3, actorId: 'P09', skillId: 'M09-S3', skillCastId: 'cast-mark', configuredCost: 2, actualCost: 2, manaBefore: 5, enhanced: false, targetDependent: false, energyGainRequested: 0, stateBeforeCast: {} });
+  collector.onStatusChanged({ round: 3, change: 'apply', statusInstanceId: 'vuln-1', statusId: 'vulnerable', statusName: '易伤', sourceUnitId: 'P09', sourceSkillId: 'M09-S3', targetUnitId: 'enemy@1', stackBefore: 0, stackDelta: 1, stackAfter: 1, durationBefore: 0, durationAfter: 3 });
+  collector.onDamageResolved({ round: 4, sourceSide: 'player', sourceId: 'P09', skillId: 'M09-S2', targetSide: 'enemy', targetId: 'enemy@1', attempted: 150, actual: 150, absorbed: 0, activeVulnerabilityStatusInstanceId: 'vuln-1', damageTakenMultiplier: 3, exposedMultiplier: 2, vulnerabilityMultiplier: 1.5, finalDamageWithoutTakenModifiers: 50, finalDamageWithoutVulnerability: 100, extraDamageFromExposed: 50, extraDamageFromVulnerability: 50 });
+  collector.onStatusChanged({ round: 5, change: 'remove', statusInstanceId: 'vuln-1', statusId: 'vulnerable', statusName: '易伤', targetUnitId: 'enemy@1', stackBefore: 1, stackDelta: -1, stackAfter: 0, durationBefore: 1, durationAfter: 0, removeReason: 'duration_expired' });
+
+  collector.onSkillConfirmed({ round: 5, actorId: 'P10', skillId: 'M10-S3', skillCastId: 'cast-return', configuredCost: 5, actualCost: 0, manaBefore: 0, enhanced: true, targetDependent: false, energyGainRequested: 5, isFreeCast: true, freeCastReason: 'first_use_in_battle', stateBeforeCast: {} });
+  collector.onSkillResolved({ round: 5, actorId: 'P10', skillId: 'M10-S3', skillCastId: 'cast-return', configuredCost: 5, actualCost: 0, energyGainRequested: 5, energyGainActual: 5, energyOverflow: 0, energyAfterSkillResolution: 5, resetTrigger: 'none', stateAfterCast: {} });
+
+  const fakeGame = { state: { mana: { current: 5, max: 10 }, spirits: {}, enemies: {} }, getTelemetryErrors: () => [] };
+  radar.finishBattle(handle, { victory: true, rounds: 5, survivingSpirits: 4, totalRemainingHp: 1000, totalMaxHp: 1000, errors: [], enemyIds: ['enemy'] }, fakeGame);
+  radar.finishRun(true);
+  const report = radar.finalize({ overview: { runs: 1, clears: 1, clearRate: 1 } }, thresholds(), null);
+  assert.equal(report.skillValidation.ironSupport.effectiveHealing, 60);
+  assert.equal(report.skillValidation.ironSupport.shieldUtilizationRate, 0.5);
+  assert.equal(report.skillValidation.bellBlessing.freeEffectiveHealing, 120);
+  assert.equal(report.skillValidation.bellBlessing.freeShieldUtilizationRate, 0.5);
+  assert.equal(report.skillValidation.vulnerability.coveredRounds, 1);
+  assert.equal(report.skillValidation.vulnerability.extraDamage, 50);
+  assert.equal(report.skillValidation.exposure.coveredHits, 1);
+  assert.equal(report.skillValidation.exposure.baseDamage, 50);
+  assert.equal(report.skillValidation.exposure.extraDamage, 50);
+  assert.equal(report.skillValidation.starReturn.firstFreeUses, 1);
+  assert.equal(report.skillValidation.starReturn.netEnergy, 5);
+});
+
 test('Boss预告、转移命中和未兑现原因进入机制遥测', () => {
   const config = battleSystemConfig();
   const spirit = config.creatureConfig[0];

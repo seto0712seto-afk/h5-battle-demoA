@@ -52,10 +52,24 @@ class ExperienceRadar {
           uses: 0,
           ownerSkillActions: 0,
           useShareOfOwnerSkillActions: 0,
+          repeatedUses: 0,
+          consecutiveRepeatRate: 0,
+          configuredCostTotal: 0,
+          actualCostTotal: 0,
+          averageConfiguredCost: 0,
+          averageActualCost: 0,
+          freeUses: 0,
+          freeUseRate: 0,
+          actualCostUseCounts: {},
           damageDealt: 0,
+          averageDamage: 0,
           effectiveHealing: 0,
+          averageEffectiveHealing: 0,
           overheal: 0,
           shieldGranted: 0,
+          shieldAbsorbed: 0,
+          shieldUtilizationRate: 0,
+          energyRequested: 0,
           energyGenerated: 0,
           energyOverflow: 0,
           enhancedAvailableCount: hasEnhancementMechanic(skill) ? 0 : null,
@@ -84,6 +98,33 @@ class ExperienceRadar {
       skillGained: 0,
       energyGeneratedBySkill: {}
     };
+    this.skillValidation = {
+      chainSlash: { completeCycles: 0, costUseCounts: {}, resetByOtherSkill: 0, resetByZeroCostCast: 0 },
+      windBurst: { stacksGainedBySourceSkill: {}, payoffUsesByStackCount: {}, averagePayoffStacks: 0, stormGuaranteedCritUses: 0, unspentStacksAtBattleEnd: 0 },
+      regeneration: { applications: 0, triggerCount: 0, completedInstances: 0, removedBeforeCompletion: 0, remainingTurnsLost: 0 },
+      shieldPress: { uses: 0, shieldConsumed: 0, fixedDamageGenerated: 0, shieldSourceComposition: {}, afterRockGuardUses: 0 },
+      ironSupport: { uses: 0, enhancedUses: 0, enhancedRate: 0, effectiveHealing: 0, shieldGenerated: 0, shieldAbsorbed: 0, shieldUtilizationRate: 0 },
+      bellBlessing: {
+        entryQualifications: 0, freeUses: 0, paidUses: 0, qualificationLostByOtherSkill: 0,
+        freeEffectiveHealing: 0, paidEffectiveHealing: 0,
+        freeShieldGenerated: 0, paidShieldGenerated: 0,
+        freeShieldAbsorbed: 0, paidShieldAbsorbed: 0,
+        freeShieldUtilizationRate: 0, paidShieldUtilizationRate: 0
+      },
+      vulnerability: {
+        applications: 0, coveredRounds: 0, coveredHits: 0, baseDamage: 0, extraDamage: 0,
+        averageExtraDamagePerApplication: 0, unusedWindowTurns: 0
+      },
+      exposure: { coveredHits: 0, baseDamage: 0, extraDamage: 0 },
+      skillEnergy: {},
+      starReturn: { uses: 0, firstFreeUses: 0, paidUses: 0, actualSpent: 0, actualGained: 0, netEnergy: 0, usesByRound: {} },
+      starArmor: { uses: 0, fixedDamage: 0, shieldGenerated: 0, shieldAbsorbed: 0, ownerSkillShare: 0 }
+    };
+    this.regenInstances = new Map();
+    this.vulnerabilityInstances = new Map();
+    this.bellCastModes = new Map();
+    this.bellShieldModes = new Map();
+    this.shieldPressRockGuardCasts = new Set();
     this.bosses = {};
   }
 
@@ -164,6 +205,7 @@ class ExperienceRadar {
           event.activeSpiritIds.forEach((id) => {
             if (this.spirits[id]) this.spirits[id].enteredBattleCount += 1;
           });
+          if (event.activeSpiritIds.includes('P08')) this.skillValidation.bellBlessing.entryQualifications += 1;
         }),
         onActionStart: safe((event) => {
           if (event.side === 'enemy') {
@@ -187,7 +229,50 @@ class ExperienceRadar {
           if (metric) {
             metric.uses += 1;
             metric.ownerSkillActions += 1;
+            metric.configuredCostTotal += event.configuredCost ?? this.config.skillConfig[event.skillId]?.cost ?? 0;
+            metric.actualCostTotal += event.actualCost;
+            metric.energyRequested += event.energyGainRequested ?? 0;
+            if (event.isFreeCast) metric.freeUses += 1;
+            if (event.stateBeforeCast?.lastSkillId === event.skillId) metric.repeatedUses += 1;
+            increment(metric.actualCostUseCounts, String(event.actualCost));
             if (event.enhanced && metric.enhancedUseCount !== null) metric.enhancedUseCount += 1;
+          }
+          if (event.skillId === 'M01-S2') {
+            increment(this.skillValidation.chainSlash.costUseCounts, String(event.actualCost));
+            if (event.actualCost === 0 && event.stateBeforeCast?.consecutiveUseCount === 2) this.skillValidation.chainSlash.completeCycles += 1;
+          }
+          if (event.actorId === 'P02' && event.stateBeforeCast?.damageAmpStacks > 0) {
+            increment(this.skillValidation.windBurst.payoffUsesByStackCount, String(event.stateBeforeCast.damageAmpStacks));
+          }
+          if (event.skillId === 'M02-S3' && event.guaranteedCrit && event.stateBeforeCast?.damageAmpStacks > 0) {
+            this.skillValidation.windBurst.stormGuaranteedCritUses += 1;
+          }
+          if (event.skillId === 'M06-S2') {
+            this.skillValidation.ironSupport.uses += 1;
+            if (event.enhanced) this.skillValidation.ironSupport.enhancedUses += 1;
+          }
+          if (event.skillId === 'M08-S3') {
+            const mode = event.freeCastReason === 'first_skill_after_entry' ? 'free' : 'paid';
+            this.bellCastModes.set(event.skillCastId, mode);
+            if (mode === 'free') this.skillValidation.bellBlessing.freeUses += 1;
+            else this.skillValidation.bellBlessing.paidUses += 1;
+          } else if (event.actorId === 'P08' && event.stateBeforeCast?.entrySkillAvailable) {
+            this.skillValidation.bellBlessing.qualificationLostByOtherSkill += 1;
+          }
+          if (event.skillId === 'M10-S3') {
+            this.skillValidation.starReturn.uses += 1;
+            if (event.freeCastReason === 'first_use_in_battle') this.skillValidation.starReturn.firstFreeUses += 1;
+            else this.skillValidation.starReturn.paidUses += 1;
+            this.skillValidation.starReturn.actualSpent += event.actualCost;
+            increment(this.skillValidation.starReturn.usesByRound, String(event.round));
+          }
+          if (event.skillId === 'M10-S2') this.skillValidation.starArmor.uses += 1;
+          if (event.skillId === 'M04-S2') this.skillValidation.shieldPress.uses += 1;
+          if (event.skillId === 'M09-S3') this.skillValidation.vulnerability.applications += 1;
+          if (['M06-S1', 'M09-S1', 'M10-S1'].includes(event.skillId)) {
+            this.skillValidation.skillEnergy[event.skillId] ??= { uses: 0, requested: 0, actual: 0, overflow: 0, contributionRate: 0 };
+            this.skillValidation.skillEnergy[event.skillId].uses += 1;
+            this.skillValidation.skillEnergy[event.skillId].requested += event.energyGainRequested ?? 0;
           }
           const owner = this.config.creatureConfig.find((spirit) => spirit.id === event.actorId);
           owner?.skillIds.forEach((skillId) => {
@@ -211,12 +296,39 @@ class ExperienceRadar {
             }
           }
         }),
+        onSkillResolved: safe((event) => {
+          if (event.skillId === 'M01-S2') {
+            if (event.resetTrigger === 'zero_cost_cast') this.skillValidation.chainSlash.resetByZeroCostCast += 1;
+          } else if (event.resetTrigger === 'other_skill_used' && event.actorId === 'P01') {
+            this.skillValidation.chainSlash.resetByOtherSkill += 1;
+          }
+          if (event.skillId === 'M10-S3') {
+            this.skillValidation.starReturn.actualGained += event.energyGainActual;
+            this.skillValidation.starReturn.netEnergy += event.energyGainActual - event.actualCost;
+          }
+        }),
         onDamageResolved: safe((event) => {
           if (event.sourceSide === 'player') {
             if (this.spirits[event.sourceId]) this.spirits[event.sourceId].damageDealt += event.actual;
             if (this.skills[event.skillId]) this.skills[event.skillId].damageDealt += event.actual;
             battle.bossDamageTaken += event.actual;
             if (event.targetExposed) battle.exposedWindowDamageTotal += event.actual;
+            if ((event.exposedMultiplier ?? 1) > 1) {
+              this.skillValidation.exposure.coveredHits += 1;
+              this.skillValidation.exposure.baseDamage += event.finalDamageWithoutTakenModifiers ?? event.actual;
+              this.skillValidation.exposure.extraDamage += event.extraDamageFromExposed ?? 0;
+            }
+            if ((event.vulnerabilityMultiplier ?? 1) > 1) {
+              this.skillValidation.vulnerability.coveredHits += 1;
+              this.skillValidation.vulnerability.baseDamage += event.finalDamageWithoutVulnerability ?? event.actual;
+              this.skillValidation.vulnerability.extraDamage += event.extraDamageFromVulnerability ?? 0;
+              const instance = this.vulnerabilityInstances.get(event.activeVulnerabilityStatusInstanceId);
+              if (instance) {
+                instance.hits += 1;
+                instance.rounds.add(event.round);
+              }
+            }
+            if (event.skillId === 'M10-S2' && event.damageType === 'fixed') this.skillValidation.starArmor.fixedDamage += event.actual;
             return;
           }
           battle.totalPlayerDamageTaken += event.actual;
@@ -237,10 +349,73 @@ class ExperienceRadar {
             this.skills[event.skillId].effectiveHealing += event.effective;
             this.skills[event.skillId].overheal += event.overheal;
           }
+          if (event.skillId === 'M06-S2') this.skillValidation.ironSupport.effectiveHealing += event.effective;
+          if (event.skillId === 'M08-S3') {
+            const mode = this.bellCastModes.get(event.skillCastId);
+            if (mode === 'free') this.skillValidation.bellBlessing.freeEffectiveHealing += event.effective;
+            if (mode === 'paid') this.skillValidation.bellBlessing.paidEffectiveHealing += event.effective;
+          }
+          if (event.healingSourceType === 'status' && event.statusInstanceId) {
+            this.skillValidation.regeneration.triggerCount += 1;
+            const instance = this.regenInstances.get(event.statusInstanceId);
+            if (instance) instance.triggers += 1;
+          }
         }),
         onShieldGranted: safe((event) => {
           if (this.spirits[event.actorId]) this.spirits[event.actorId].shieldGranted += event.granted;
           if (event.skillId && this.skills[event.skillId]) this.skills[event.skillId].shieldGranted += event.granted;
+          if (event.skillId === 'M06-S2') this.skillValidation.ironSupport.shieldGenerated += event.granted;
+          if (event.skillId === 'M08-S3') {
+            const mode = this.bellCastModes.get(event.skillCastId);
+            if (event.shieldInstanceId && mode) this.bellShieldModes.set(event.shieldInstanceId, mode);
+            if (mode === 'free') this.skillValidation.bellBlessing.freeShieldGenerated += event.granted;
+            if (mode === 'paid') this.skillValidation.bellBlessing.paidShieldGenerated += event.granted;
+          }
+          if (event.skillId === 'M10-S2') this.skillValidation.starArmor.shieldGenerated += event.granted;
+        }),
+        onShieldAbsorbed: safe((event) => {
+          if (event.sourceSkillId && this.skills[event.sourceSkillId]) this.skills[event.sourceSkillId].shieldAbsorbed += event.absorbedDamage;
+          if (event.sourceSkillId === 'M06-S2') this.skillValidation.ironSupport.shieldAbsorbed += event.absorbedDamage;
+          if (event.sourceSkillId === 'M08-S3') {
+            const mode = this.bellShieldModes.get(event.shieldInstanceId);
+            if (mode === 'free') this.skillValidation.bellBlessing.freeShieldAbsorbed += event.absorbedDamage;
+            if (mode === 'paid') this.skillValidation.bellBlessing.paidShieldAbsorbed += event.absorbedDamage;
+          }
+          if (event.sourceSkillId === 'M10-S2') this.skillValidation.starArmor.shieldAbsorbed += event.absorbedDamage;
+        }),
+        onShieldConsumed: safe((event) => {
+          if (event.consumedBySkillId !== 'M04-S2') return;
+          this.skillValidation.shieldPress.shieldConsumed += event.shieldConsumed;
+          this.skillValidation.shieldPress.fixedDamageGenerated += event.fixedDamageGenerated;
+          increment(this.skillValidation.shieldPress.shieldSourceComposition, event.sourceSkillId ?? 'unattributed', event.shieldConsumed);
+          if (event.sourceSkillId === 'M04-S3' && event.skillCastId && !this.shieldPressRockGuardCasts.has(event.skillCastId)) {
+            this.shieldPressRockGuardCasts.add(event.skillCastId);
+            this.skillValidation.shieldPress.afterRockGuardUses += 1;
+          }
+        }),
+        onStatusChanged: safe((event) => {
+          if (event.statusId === 'damage-amp' && event.stackDelta > 0) {
+            increment(this.skillValidation.windBurst.stacksGainedBySourceSkill, event.sourceSkillId ?? event.applyReason ?? 'unattributed', event.stackDelta);
+          }
+          if (event.statusId === 'regen' && event.change === 'apply') {
+            this.skillValidation.regeneration.applications += 1;
+            this.regenInstances.set(event.statusInstanceId, { triggers: 0, initialDuration: event.durationAfter });
+          }
+          if (event.statusId === 'regen' && event.change === 'remove') {
+            const instance = this.regenInstances.get(event.statusInstanceId);
+            if (event.removeReason === 'duration_expired') this.skillValidation.regeneration.completedInstances += 1;
+            else {
+              this.skillValidation.regeneration.removedBeforeCompletion += 1;
+              this.skillValidation.regeneration.remainingTurnsLost += event.durationBefore;
+            }
+            if (instance) this.regenInstances.delete(event.statusInstanceId);
+          }
+          if (event.statusId === 'vulnerable' && event.change === 'apply') {
+            this.vulnerabilityInstances.set(event.statusInstanceId, { initialDuration: event.durationAfter, hits: 0, rounds: new Set() });
+          }
+          if (event.statusId === 'vulnerable' && event.change === 'remove') {
+            this.finalizeVulnerabilityInstance(event.statusInstanceId);
+          }
         }),
         onEnergyChanged: safe((event) => {
           this.energy.attemptedGain += event.attemptedGain;
@@ -256,6 +431,10 @@ class ExperienceRadar {
               this.skills[event.skillId].energyOverflow += Math.max(0, event.attemptedGain - event.gained);
             }
             if (event.actorId && this.spirits[event.actorId]) this.spirits[event.actorId].energyGenerated += event.gained;
+            if (this.skillValidation.skillEnergy[event.skillId]) {
+              this.skillValidation.skillEnergy[event.skillId].actual += event.gained;
+              this.skillValidation.skillEnergy[event.skillId].overflow += Math.max(0, event.attemptedGain - event.gained);
+            }
           }
         }),
         onSwitchResolved: safe((event) => {
@@ -265,6 +444,7 @@ class ExperienceRadar {
             this.spirits[event.incomingId].enteredBattleCount += 1;
             if (!event.forced) this.spirits[event.incomingId].switchedIn += 1;
           }
+          if (event.incomingId === 'P08') this.skillValidation.bellBlessing.entryQualifications += 1;
           if (event.forced) battle.forcedReplacements += 1;
           else battle.tacticalSwaps += 1;
           if (!event.forced && battle.pendingTelegraphs.some((pending) => telegraphMatchesSwitch(pending, event))) {
@@ -349,6 +529,14 @@ class ExperienceRadar {
     });
   }
 
+  finalizeVulnerabilityInstance(statusInstanceId) {
+    const instance = this.vulnerabilityInstances.get(statusInstanceId);
+    if (!instance) return;
+    this.skillValidation.vulnerability.coveredRounds += instance.rounds.size;
+    this.skillValidation.vulnerability.unusedWindowTurns += Math.max(0, instance.initialDuration - instance.rounds.size);
+    this.vulnerabilityInstances.delete(statusInstanceId);
+  }
+
   finishBattle(handle, result, game) {
     const battle = handle.battle;
     battle.result = result.victory ? 'victory' : 'defeat';
@@ -369,6 +557,18 @@ class ExperienceRadar {
     battle.errors = [...result.errors, ...handle.battle.collectorErrors.map((message) => ({ message }))];
     battle.enemyDefinitionIds = result.enemyIds;
     battle.telemetryErrors = game.getTelemetryErrors();
+    this.skillValidation.windBurst.unspentStacksAtBattleEnd += game.state.spirits.P02?.damageAmpStacks ?? 0;
+    Object.values(game.state.spirits).forEach((spirit) => {
+      const regen = spirit.statuses?.regen;
+      if (!regen?.instanceId || !this.regenInstances.has(regen.instanceId)) return;
+      this.skillValidation.regeneration.removedBeforeCompletion += 1;
+      this.skillValidation.regeneration.remainingTurnsLost += regen.duration;
+      this.regenInstances.delete(regen.instanceId);
+    });
+    Object.values(game.state.enemies ?? {}).forEach((enemy) => {
+      const vulnerable = enemy.statuses?.vulnerable;
+      if (vulnerable?.instanceId) this.finalizeVulnerabilityInstance(vulnerable.instanceId);
+    });
     this.battles.push(battle);
     battle.errors.forEach((error) => this.runtimeAnomalies.push({
       seed: battle.seed,
@@ -417,6 +617,13 @@ class ExperienceRadar {
     });
     Object.values(this.skills).forEach((metric) => {
       metric.useShareOfOwnerSkillActions = ratio(metric.uses, metric.ownerSkillActions);
+      metric.consecutiveRepeatRate = ratio(metric.repeatedUses, metric.uses);
+      metric.averageConfiguredCost = ratio(metric.configuredCostTotal, metric.uses);
+      metric.averageActualCost = ratio(metric.actualCostTotal, metric.uses);
+      metric.freeUseRate = ratio(metric.freeUses, metric.uses);
+      metric.averageDamage = ratio(metric.damageDealt, metric.uses);
+      metric.averageEffectiveHealing = ratio(metric.effectiveHealing, metric.uses);
+      metric.shieldUtilizationRate = ratio(metric.shieldAbsorbed, metric.shieldGranted);
       if (metric.enhancedAvailableCount !== null) {
         metric.enhancedConversionRate = ratio(metric.enhancedUseCount, metric.enhancedAvailableCount);
       }
@@ -426,6 +633,18 @@ class ExperienceRadar {
     this.energy.zeroEnergyActionStartRate = ratio(this.energy.zeroEnergyActionStarts, this.energy.playerActionStarts);
     this.energy.fullEnergyActionStartRate = ratio(this.energy.fullEnergyActionStarts, this.energy.playerActionStarts);
     this.energy.averageEnergyAtSkillConfirm = ratio(this.energy.energyAtSkillConfirmTotal, this.energy.skillConfirms);
+    this.skillValidation.ironSupport.enhancedRate = ratio(this.skillValidation.ironSupport.enhancedUses, this.skillValidation.ironSupport.uses);
+    this.skillValidation.ironSupport.shieldUtilizationRate = ratio(this.skillValidation.ironSupport.shieldAbsorbed, this.skillValidation.ironSupport.shieldGenerated);
+    this.skillValidation.bellBlessing.freeShieldUtilizationRate = ratio(this.skillValidation.bellBlessing.freeShieldAbsorbed, this.skillValidation.bellBlessing.freeShieldGenerated);
+    this.skillValidation.bellBlessing.paidShieldUtilizationRate = ratio(this.skillValidation.bellBlessing.paidShieldAbsorbed, this.skillValidation.bellBlessing.paidShieldGenerated);
+    this.skillValidation.vulnerability.averageExtraDamagePerApplication = ratio(this.skillValidation.vulnerability.extraDamage, this.skillValidation.vulnerability.applications);
+    this.skillValidation.shieldPress.rockGuardFollowupRate = ratio(this.skillValidation.shieldPress.afterRockGuardUses, this.skillValidation.shieldPress.uses);
+    this.skillValidation.regeneration.fullCompletionRate = ratio(this.skillValidation.regeneration.completedInstances, this.skillValidation.regeneration.applications);
+    this.skillValidation.windBurst.averagePayoffStacks = weightedKeyAverage(this.skillValidation.windBurst.payoffUsesByStackCount);
+    Object.values(this.skillValidation.skillEnergy).forEach((metric) => {
+      metric.contributionRate = ratio(metric.actual, this.energy.skillGained);
+    });
+    this.skillValidation.starArmor.ownerSkillShare = this.skills['M10-S2']?.useShareOfOwnerSkillActions ?? 0;
 
     const stages = Object.fromEntries([1, 2, 3, 4, 5].map((stage) => {
       const rows = this.battles.filter((battle) => battle.stage === stage);
@@ -501,6 +720,7 @@ class ExperienceRadar {
       spirits: this.spirits,
       skills: this.skills,
       energy: this.energy,
+      skillValidation: this.skillValidation,
       bosses: this.bosses,
       battleRecords: this.battles.map((battle) => battleRecord(battle)),
       warnings: [],
@@ -666,6 +886,13 @@ function telegraphMatchesRowSwitch(pending, event) {
 
 function increment(target, key, amount = 1) {
   target[key] = (target[key] ?? 0) + amount;
+}
+
+function weightedKeyAverage(counts) {
+  const entries = Object.entries(counts ?? {});
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  if (total <= 0) return 0;
+  return round(entries.reduce((sum, [value, count]) => sum + Number(value) * count, 0) / total);
 }
 
 function mergeCountMaps(maps) {

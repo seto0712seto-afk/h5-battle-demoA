@@ -80,6 +80,11 @@ function convertEvent(event, context) {
     mechanicId: event.mechanicId ?? undefined,
     phaseId: event.phaseId ?? undefined,
     ...values,
+    damageTakenMultiplier: numberOrUndefined(raw.damageTakenMultiplier),
+    exposedMultiplier: numberOrUndefined(raw.exposedMultiplier),
+    vulnerabilityMultiplier: numberOrUndefined(raw.vulnerabilityMultiplier),
+    extraDamageFromExposed: numberOrUndefined(raw.extraDamageFromExposed),
+    extraDamageFromVulnerability: numberOrUndefined(raw.extraDamageFromVulnerability),
     resourceBefore,
     resourceAfter,
     resourceDelta,
@@ -121,6 +126,7 @@ function eventValues(event, raw) {
     overValue: Math.max(0, Number(raw.attempted ?? event.value ?? 0) - Number(raw.granted ?? event.value ?? 0))
   };
   if (event.eventType === 'shield_absorb') return { value: event.value, effectiveValue: event.value };
+  if (event.eventType === 'shield_consume') return { value: event.value, effectiveValue: event.value };
   if (event.eventType === 'resource_gain' || event.eventType === 'resource_spend') return { value: Math.abs(Number(event.value ?? 0)), effectiveValue: Math.abs(Number(event.value ?? 0)) };
   return event.value ? { value: Number(event.value) } : {};
 }
@@ -141,7 +147,7 @@ function eventTags(event, skill) {
 }
 
 function outcomeEvent(type) {
-  return ['damage', 'heal', 'shield_gain', 'shield_absorb', 'resource_gain', 'resource_spend', 'unit_death', 'replacement_scheduled', 'replacement_completed', 'status_apply', 'status_remove'].includes(type);
+  return ['damage', 'heal', 'shield_gain', 'shield_absorb', 'shield_consume', 'resource_gain', 'resource_spend', 'unit_death', 'replacement_scheduled', 'replacement_completed', 'status_apply', 'status_remove'].includes(type);
 }
 
 function numberOrUndefined(value) {
