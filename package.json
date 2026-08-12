@@ -19,6 +19,7 @@
     "simulate:ten:phase0": "node scripts/run-ten-spirit-phase0.mjs",
     "simulate:ten:specialty": "node scripts/run-ten-spirit-specialty-suite.mjs",
     "simulate:ten:test-only": "node scripts/run-test-only-specialty-suite.mjs",
+    "simulate:ten:final-v2": "node scripts/run-ten-spirit-final-validation-v2.mjs",
     "simulate:forge:summary": "node scripts/run-forge-boss-summary.mjs",
     "simulate:boss:generic": "node scripts/run-boss-report-v2.mjs",
     "simulate:boss:generic:v1": "node scripts/run-generic-boss-report.mjs",

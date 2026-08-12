@@ -1379,7 +1379,7 @@ export class BattleGame {
         enhancements.push({ reason: '本场首次使用', value: '妖力消耗 -' + skill.firstUseInBattleCostReduction });
       }
       if (skill.firstSkillAfterEntryCostReduction && actor.entrySkillAvailable) {
-        enhancements.push({ reason: '本次入场后的首次行动使用本技能', value: '妖力消耗 -' + skill.firstSkillAfterEntryCostReduction });
+        enhancements.push({ reason: '本次入场后首次使用本技能', value: '妖力消耗 -' + skill.firstSkillAfterEntryCostReduction });
       }
       if (energySavingActive) {
         enhancements.push({ reason: '持有节能', value: '妖力消耗 ' + costBeforeEnergySaving + '→' + actualCost });
@@ -1988,9 +1988,10 @@ export class BattleGame {
   }
 
   private skillFreeCastReason(skill: SkillData, spirit: RuntimeSpirit, actualCost: number) {
-    if (skill.cost <= 0 || actualCost > 0) return 'none' as const;
+    if (skill.cost <= 0 || actualCost >= skill.cost) return 'none' as const;
     if (skill.firstUseInBattleCostReduction && (spirit.skillUseCounts[skill.id] ?? 0) === 0) return 'first_use_in_battle' as const;
-    if (skill.firstSkillAfterEntryCostReduction && spirit.entrySkillAvailable) return 'first_skill_after_entry' as const;
+    if (skill.firstSkillAfterEntryCostReduction && spirit.entrySkillAvailable) return 'first_use_after_entry' as const;
+    if (actualCost > 0) return 'none' as const;
     if (skill.consecutiveUseCostReduction) return 'dynamic_cost_reduced_to_zero' as const;
     return 'none' as const;
   }
@@ -2015,7 +2016,7 @@ export class BattleGame {
     }
     spirit.skillUseCounts[skill.id] = (spirit.skillUseCounts[skill.id] ?? 0) + 1;
     spirit.skillUseIndexAfterEntry += 1;
-    spirit.entrySkillAvailable = false;
+    if (skill.firstSkillAfterEntryCostReduction) spirit.entrySkillAvailable = false;
     if (skill.resetConsecutiveUseAtMinimumCost && actualCost === (skill.minimumCost ?? 0)) {
       spirit.lastSkillId = null;
       spirit.skillUseStreak = 0;
@@ -2071,7 +2072,6 @@ export class BattleGame {
       if (this.state.actionContext === 'normal') {
         this.tickSkillCooldowns(actor, usedSkillId);
         this.finishSpiritTurnStatuses(actor);
-        if (!usedSkillId) actor.entrySkillAvailable = false;
         this.completeCurrentActionSlot(slotStatus);
       }
       if (!keepLastSkill) actor.lastSkillId = null;

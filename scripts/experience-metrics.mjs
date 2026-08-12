@@ -252,12 +252,10 @@ class ExperienceRadar {
             if (event.enhanced) this.skillValidation.ironSupport.enhancedUses += 1;
           }
           if (event.skillId === 'M08-S3') {
-            const mode = event.freeCastReason === 'first_skill_after_entry' ? 'free' : 'paid';
+            const mode = ['first_skill_after_entry', 'first_use_after_entry'].includes(event.freeCastReason) ? 'free' : 'paid';
             this.bellCastModes.set(event.skillCastId, mode);
             if (mode === 'free') this.skillValidation.bellBlessing.freeUses += 1;
             else this.skillValidation.bellBlessing.paidUses += 1;
-          } else if (event.actorId === 'P08' && event.stateBeforeCast?.entrySkillAvailable) {
-            this.skillValidation.bellBlessing.qualificationLostByOtherSkill += 1;
           }
           if (event.skillId === 'M10-S3') {
             this.skillValidation.starReturn.uses += 1;

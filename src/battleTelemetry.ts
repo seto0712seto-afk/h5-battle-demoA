@@ -138,7 +138,7 @@ export interface SkillConfirmedTelemetry extends TelemetryEventBase {
   energyAfterActionStart: number;
   energyGainRequested: number;
   isFreeCast: boolean;
-  freeCastReason: 'none' | 'first_use_in_battle' | 'first_skill_after_entry' | 'dynamic_cost_reduced_to_zero';
+  freeCastReason: 'none' | 'first_use_in_battle' | 'first_skill_after_entry' | 'first_use_after_entry' | 'dynamic_cost_reduced_to_zero';
   stateBeforeCast: SkillRuntimeStateTelemetry;
   entrySequenceId: number;
   battleUseIndex: number;

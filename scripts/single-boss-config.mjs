@@ -27,6 +27,10 @@ export const FIXED_TEAMS = {
   'TEST-P07-DUAL': ['P07', 'P09', 'P10'],
   'TEST-P06': ['P06', 'P01', 'P09'],
   'TEST-P08': ['P08', 'P01', 'P04', 'P05'],
+  'TEST-V2-MANA-A': ['P01', 'P09', 'P10'],
+  'TEST-V2-MANA-B': ['P01', 'P09', 'P05'],
+  'TEST-V2-MANA-C': ['P01', 'P10', 'P05'],
+  'TEST-V2-MANA-D': ['P01', 'P05', 'P07'],
   'TEST-COVERAGE': ['P02', 'P03', 'P05'],
   'TEST-HIGH-COST-NO-P10': ['P01', 'P09', 'P04'],
   'TEST-P07-HIGH-COST-NO-P10': ['P07', 'P09', 'P04']

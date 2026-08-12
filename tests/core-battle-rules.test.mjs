@@ -333,7 +333,7 @@ test('确认后的十精灵技能费用、数值与持续时间配置一致', ()
       seed: [25, 0.08, 2, undefined, 4],
       badger: [40, 2, 1, 3, 280],
       shell: [2, 0.3, 4, 150],
-      rhino: [25, 3, 200, '能量转移', 2, true],
+      rhino: [25, 3, 200, '能量转移', 1, true],
       eclipse: [10, 140, 6, 0.3],
       deer: [4, 'ally-field', true, 0.3],
       bell: [4, 150, 150, 3],
@@ -579,25 +579,66 @@ test('盾压在确认时消耗现有护盾并只造成等额固定伤害', () =>
   assert.equal(hpBefore - game.state.boss.hp, 300);
 });
 
-test('灵铃庇佑仅在每次入场后的首次行动使用本技能时为1费', () => {
+test('灵铃庇佑 Case A：先用铃音守护后首次使用仍为1费', () => {
+  const game = gameFor(['P08', 'P01', 'P02', 'P04']);
+  const skill = battleSystemConfig().skillConfig['M08-S3'];
+  forcePlayerAction(game, 'P08');
+  game.state.mana.current = 10;
+  assert.equal(game.useSkill('M08-S1').ok, true);
+  forcePlayerAction(game, 'P08');
+  game.state.mana.current = 10;
+  assert.equal(game.skillActualCost(skill), 1);
+  assert.equal(game.useSkill('M08-S3').ok, true);
+  assert.equal(game.chooseSkillTarget('P08').ok, true);
+});
+
+test('灵铃庇佑 Case B：同一入场周期首次1费、再次4费', () => {
   const game = gameFor(['P08', 'P01', 'P02', 'P04']);
   const skill = battleSystemConfig().skillConfig['M08-S3'];
   forcePlayerAction(game, 'P08');
   game.state.mana.current = 10;
   assert.equal(game.skillActualCost(skill), 1);
-  assert.equal(game.useSkill('M08-S1').ok, true);
-
+  assert.equal(game.useSkill('M08-S3').ok, true);
+  assert.equal(game.chooseSkillTarget('P08').ok, true);
   forcePlayerAction(game, 'P08');
+  game.state.mana.current = 10;
   assert.equal(game.skillActualCost(skill), 4);
+  assert.equal(game.useSkill('M08-S3').ok, true);
+  assert.equal(game.chooseSkillTarget('P08').ok, true);
+});
+
+test('灵铃庇佑 Case C：换下再入场重新获得1费资格', () => {
+  const game = gameFor(['P08', 'P01', 'P02', 'P04']);
+  const skill = battleSystemConfig().skillConfig['M08-S3'];
+  forcePlayerAction(game, 'P08');
+  game.state.mana.current = 10;
+  assert.equal(game.useSkill('M08-S3').ok, true);
+  assert.equal(game.chooseSkillTarget('P08').ok, true);
+  forcePlayerAction(game, 'P08');
   assert.equal(game.swapWithBench('P04').ok, true);
   forcePlayerAction(game, 'P04');
   assert.equal(game.swapWithBench('P08').ok, true);
-
   forcePlayerAction(game, 'P08');
+  game.state.mana.current = 10;
   assert.equal(game.skillActualCost(skill), 1);
   assert.equal(game.useSkill('M08-S3').ok, true);
   assert.equal(game.chooseSkillTarget('P08').ok, true);
   assert.equal(game.getSpirit('P08').shieldValue, 150);
+});
+
+test('灵铃庇佑 Case D：使用多个其他技能后首次使用仍为1费', () => {
+  const game = gameFor(['P08', 'P01', 'P02', 'P04']);
+  const skill = battleSystemConfig().skillConfig['M08-S3'];
+  for (let index = 0; index < 3; index += 1) {
+    forcePlayerAction(game, 'P08');
+    game.state.mana.current = 10;
+    assert.equal(game.useSkill('M08-S1').ok, true);
+  }
+  forcePlayerAction(game, 'P08');
+  game.state.mana.current = 10;
+  assert.equal(game.skillActualCost(skill), 1);
+  assert.equal(game.useSkill('M08-S3').ok, true);
+  assert.equal(game.chooseSkillTarget('P08').ok, true);
 });
 
 test('能量转移只能选择其他友方，节能作用于动态费用后并在技能支付时移除', () => {
@@ -618,6 +659,30 @@ test('能量转移只能选择其他友方，节能作用于动态费用后并�
   assert.equal(game.skillActualCost(chain), 0);
   assert.equal(game.useSkill(chain.id).ok, true);
   assert.equal(actor.statuses['energy-saving'], undefined);
+});
+
+test('能量转移费用为1且节能覆盖1到6费并只作用于下一次技能', () => {
+  const config = battleSystemConfig();
+  assert.equal(config.skillConfig['M06-S3'].cost, 1);
+  const game = new BattleGame({ config, selectedSpiritIds: ['P06', 'P01', 'P02'] });
+  const actor = game.getSpirit('P01');
+  const baseSkill = config.skillConfig['M01-S1'];
+  for (let configuredCost = 1; configuredCost <= 6; configuredCost += 1) {
+    const skill = { ...baseSkill, cost: configuredCost };
+    game['addEnergySaving']('P01', '验收');
+    assert.equal(game.skillActualCost(skill, 10, actor), Math.floor(configuredCost * 0.5));
+    delete actor.statuses['energy-saving'];
+  }
+  const skill = config.skillConfig['M01-S2'];
+  game['addEnergySaving']('P01', '验收');
+  forcePlayerAction(game, 'P01');
+  game.state.mana.current = 10;
+  assert.equal(game.skillActualCost(skill), 1);
+  assert.equal(game.useSkill(skill.id).ok, true);
+  assert.equal(actor.statuses['energy-saving'], undefined);
+  forcePlayerAction(game, 'P01');
+  game.state.mana.current = 10;
+  assert.equal(game.skillActualCost(skill), 1);
 });
 
 test('节能在非技能行动后保留，但离场时移除', () => {

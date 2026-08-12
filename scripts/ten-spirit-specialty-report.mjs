@@ -330,7 +330,7 @@ ${data.riskFlags.length > 0 ? data.riskFlags.map((flag) => `- ${flag}`).join('\n
 
 - balanced/offense/defense仅使用既有权重；本轮只增加对能量转移真实节能量的模拟估值。
 - refresh_seek_test是压力策略，不与正常AI胜率混算。
-- P08优惠严格按“每次入场后的第一次行动必须使用灵铃庇佑”判断。
+- P08优惠严格按“每次入场后第一次使用灵铃庇佑”判断；先使用其他技能不会消耗资格。
 - 胜率反映固定队伍、Boss和AI的组合结果，不等同于精灵孤立强度。
 `;
 }

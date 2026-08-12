@@ -99,7 +99,7 @@ class TenSpiritSpecialtyMetrics {
       ,special: {
         p07: { uses: 0, legalOpportunities: 0, legalButNotSelected: 0, effectiveHealing: 0, overhealing: 0 },
         p06: { transferUses: 0, discountedUses: 0, manaSaved: 0, unredeemed: 0, highCostOpportunities: 0, highCostOtherChosen: 0 },
-        p08: { uses: 0, oneCostUses: 0, fourCostUses: 0, refreshSwaps: 0, refreshedOneCostUses: 0, manaSaved: 0, effectiveHealing: 0, shieldGenerated: 0, shieldAbsorbed: 0, refreshedEffectiveHealing: 0, refreshedShieldGenerated: 0, refreshedShieldAbsorbed: 0 }
+        p08: { uses: 0, oneCostUses: 0, fourCostUses: 0, oneCostAfterOtherSkillUses: 0, refreshSwaps: 0, refreshedOneCostUses: 0, manaSaved: 0, effectiveHealing: 0, overhealing: 0, shieldGenerated: 0, shieldAbsorbed: 0, refreshedEffectiveHealing: 0, refreshedShieldGenerated: 0, refreshedShieldAbsorbed: 0 }
       }
     };
     const safe = (fn) => (payload) => fn(payload);
@@ -210,6 +210,10 @@ class TenSpiritSpecialtyMetrics {
         battle.special.p08.oneCostUses += 1;
         battle.special.p08.manaSaved += Math.max(0, event.configuredCost - event.actualCost);
         increment(this.special.p08.oneCostUsesByEntry, String(event.entrySequenceId));
+        if ((event.skillUseIndexAfterEntry ?? 1) > 1) {
+          this.special.p08.oneCostAfterOtherSkillUses += 1;
+          battle.special.p08.oneCostAfterOtherSkillUses += 1;
+        }
         if (event.entrySequenceId > 1) {
           this.special.p08.refreshedOneCostUses += 1;
           this.special.p08.refreshedManaSaved += Math.max(0, event.configuredCost - event.actualCost);
@@ -288,7 +292,9 @@ class TenSpiritSpecialtyMetrics {
     }
     if (event.skillId === 'M08-S3') {
       this.special.p08.effectiveHealing += event.effective;
+      this.special.p08.overhealing += event.overheal;
       battle.special.p08.effectiveHealing += event.effective;
+      battle.special.p08.overhealing += event.overheal;
       if (event.skillCastId && battle.p08RefreshedCastIds.has(event.skillCastId)) {
         this.special.p08.refreshedEffectiveHealing += event.effective;
         battle.special.p08.refreshedEffectiveHealing += event.effective;
@@ -497,8 +503,8 @@ function createSpecialMetrics() {
       legalHighCostTargetOpportunities: 0, highCostTargetButOtherChosen: 0
     },
     p08: {
-      uses: 0, oneCostUses: 0, fourCostUses: 0, oneCostUsesByEntry: {}, refreshSwaps: 0,
-      manaSaved: 0, effectiveHealing: 0, shieldGenerated: 0, shieldAbsorbed: 0,
+      uses: 0, oneCostUses: 0, fourCostUses: 0, oneCostAfterOtherSkillUses: 0, oneCostUsesByEntry: {}, refreshSwaps: 0,
+      manaSaved: 0, effectiveHealing: 0, overhealing: 0, shieldGenerated: 0, shieldAbsorbed: 0,
       refreshedOneCostUses: 0, refreshedManaSaved: 0,
       refreshedEffectiveHealing: 0, refreshedShieldGenerated: 0, refreshedShieldAbsorbed: 0
     },

@@ -146,7 +146,7 @@ export const SPIRITS: SpiritData[] = [
     defaultPosition: 'back',
     shortDescription: '提供前排治疗、群体回复和入场首次定点保护。',
     battleStyle: '铃音守护修复前排，鹿鸣回春同时治疗自身与另一名友方，灵铃庇佑保护单体。',
-    playTip: '每次入场后的首次行动若使用灵铃庇佑，该技能实际费用为 1。'
+    playTip: '每次入场后第一次使用灵铃庇佑时，该技能实际费用为 1。'
   },
   {
     id: 'P09',
@@ -278,7 +278,7 @@ export const SKILLS: Record<string, SkillData> = {
     description: '使一个场上存活友方获得 200 护盾；确认技能时团队妖力达到 5，额外治疗目标 20% 最大生命。'
   },
   'M06-S3': {
-    id: 'M06-S3', name: '能量转移', primaryBehavior: 'energy', kind: 'support', damageType: 'none', target: 'ally-field', excludeSelfTarget: true, cost: 2, gain: 0,
+    id: 'M06-S3', name: '能量转移', primaryBehavior: 'energy', kind: 'support', damageType: 'none', target: 'ally-field', excludeSelfTarget: true, cost: 1, gain: 0,
     addEnergySaving: true,
     description: '选择自身以外的一个场上存活友方，使其获得节能；目标下一次使用技能时，实际妖力消耗降低 50%（向下取整，最低 0），随后移除节能。'
   },
@@ -310,7 +310,7 @@ export const SKILLS: Record<string, SkillData> = {
   'M08-S3': {
     id: 'M08-S3', name: '灵铃庇佑', primaryBehavior: 'recover', secondaryBehavior: 'protect', kind: 'support', damageType: 'none', target: 'ally-field', cost: 4, gain: 0,
     healFlatValue: 150, shieldValue: 150, firstSkillAfterEntryCostReduction: 3,
-    description: '一个场上存活友方恢复 150 生命并获得 150 护盾；每次入场后的首次行动若使用本技能，则实际费用为 1。'
+    description: '一个场上存活友方恢复 150 生命并获得 150 护盾；每次入场后第一次使用本技能时，实际费用为 1。'
   },
   'M09-S1': {
     id: 'M09-S1', name: '引雷蓄能', primaryBehavior: 'energy', kind: 'support', damageType: 'none', target: 'team-mana', cost: 0, gain: 2,
