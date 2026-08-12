@@ -1,11 +1,9 @@
 import './styles.css';
 import { reportBattleDesignIssues } from './battleDesign';
-import { battleSystemConfig, battleSystemConfigWithBoss } from './battleSystems';
-import { BattleGame } from './battle';
+import { battleSystemConfig } from './battleSystems';
+import { mountBattle } from './battleIntegration';
 import { PreBattleUI, type PreBattleStartPayload } from './prebattle';
 import { StageSelectUI } from './stageSelect';
-import { stageEnemyId } from './stageRuntime';
-import { BattleUI } from './ui';
 import type { PlayerBattleSnapshot, StageConfig } from './types';
 
 const root = document.querySelector<HTMLDivElement>('#app');
@@ -54,19 +52,32 @@ function showStageBattle(payload: PreBattleStartPayload, stage: StageConfig, bat
   activeGame = null;
 
   const battle = stage.battles[battleIndex];
-  const enemy = battle?.enemies[0];
   const selectedSpiritIds = snapshot?.selectedSpiritIds ?? payload.selectedSpiritIds;
-  const selectedBossId = stageEnemyId(enemy) ?? payload.selectedBossId;
-  const config = battleSystemConfigWithBoss(selectedBossId);
-
-  const game = new BattleGame({
+  const mountedBattle = mountBattle({
+    root: root as HTMLElement,
     selectedSpiritIds,
-    selectedBossId,
-    config,
+    selectedBossId: payload.selectedBossId,
     playerSnapshot: snapshot,
     enemies: battle.enemies,
-    battleSeed: `${stage.id}:${stage.seed ?? 'fixed'}:${battleIndex + 1}`
+    battleSeed: `${stage.id}:${stage.seed ?? 'fixed'}:${battleIndex + 1}`,
+    resultTitle: (state) => {
+      if (state.phase === 'defeat') return '挑战失败';
+      if (hasNextBattle) return '本场胜利，准备进入下一场';
+      return stage.battles.length > 1 ? '副本通关' : 'Boss 已被击败';
+    },
+    resultButtonLabel: (state) => {
+      if (state.phase === 'defeat') return '返回副本选择';
+      return hasNextBattle ? '立即进入下一场' : '返回副本选择';
+    },
+    onResultAction: ({ result }) => {
+      if (result === 'victory' && hasNextBattle) {
+        startNextBattle();
+        return;
+      }
+      showStageSelect(currentPreBattlePayload ?? payload);
+    }
   });
+  const game = mountedBattle.game;
   const hasNextBattle = battleIndex < stage.battles.length - 1;
   let transitionStarted = false;
   let transitionTimer: number | null = null;
@@ -77,29 +88,9 @@ function showStageBattle(payload: PreBattleStartPayload, stage: StageConfig, bat
     transitionStarted = true;
     const nextSnapshot = game.createPlayerSnapshot();
     unsubscribe();
-    game.stop();
+    mountedBattle.stop();
     showStageBattle(payload, stage, battleIndex + 1, nextSnapshot);
   };
-
-  const ui = new BattleUI(root as HTMLElement, game, config, {
-    resultTitle: (state) => {
-      if (state.phase === 'defeat') return '挑战失败';
-      if (hasNextBattle) return '本场胜利，准备进入下一场';
-      return stage.battles.length > 1 ? '副本通关' : 'Boss 已被击败';
-    },
-    resultButtonLabel: (state) => {
-      if (state.phase === 'defeat') return '返回副本选择';
-      return hasNextBattle ? '立即进入下一场' : '返回副本选择';
-    },
-    onResultAction: (state) => {
-      if (state.phase === 'victory' && hasNextBattle) {
-        startNextBattle();
-        return;
-      }
-      showStageSelect(currentPreBattlePayload ?? payload);
-    }
-  });
-  ui.mount();
 
   unsubscribe = game.subscribe((state) => {
     if (state.phase !== 'victory' || !hasNextBattle || transitionStarted) return;
@@ -109,7 +100,7 @@ function showStageBattle(payload: PreBattleStartPayload, stage: StageConfig, bat
     stop() {
       if (transitionTimer !== null) window.clearTimeout(transitionTimer);
       unsubscribe();
-      game.stop();
+      mountedBattle.stop();
     }
   };
 }

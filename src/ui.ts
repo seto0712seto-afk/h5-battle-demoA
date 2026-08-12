@@ -31,7 +31,7 @@ const ENEMY_POSITIONS: Array<{
   { label: '6', row: 'back', slotPosition: 'back_2' }
 ];
 
-interface BattleUIOptions {
+export interface BattleUIOptions {
   resultTitle?: (state: BattleState) => string;
   resultButtonLabel?: (state: BattleState) => string;
   onResultAction?: (state: BattleState) => void;

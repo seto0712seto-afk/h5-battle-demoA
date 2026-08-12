@@ -36,7 +36,7 @@ import type { BattleTelemetryCollector } from './battleTelemetry';
 
 type Listener = (state: BattleState) => void;
 
-interface BattleGameOptions {
+export interface BattleGameOptions {
   selectedSpiritIds?: string[];
   selectedBossId?: BossId;
   config?: BattleSystemConfig;
