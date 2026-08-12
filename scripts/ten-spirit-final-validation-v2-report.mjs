@@ -11,7 +11,8 @@ export function buildFinalValidationV2Report({ manifest, completed }) {
   const mana = rows.filter((row) => row.group.focus === 'double-mana');
   const p06Rows = p06.map((row) => {
     const special = row.special.p06;
-    return `| ${row.group.bossName} | ${pct(row.winRate)} | ${special.legalHighCostTargetOpportunities} | ${special.energyTransferUses} | ${pct(row.skillShare('M06-S3'))} | ${pairs(special.energyTransferTargets)} | ${pairs(special.discountedSkills)} | ${pairs(special.costTransitions)} | ${special.manaSaved} | ${special.energySavingUnredeemed} | ${special.highCostTargetButOtherChosen} | ${pct(ratio(special.discountedSkillUses, special.energyTransferUses))} | ${row.skillUses('M06-S2')} / ${pct(row.skillShare('M06-S2'))} | ${special.ironSupportEffectiveHealing} / ${special.ironSupportShieldGenerated} / ${special.ironSupportShieldAbsorbed} | ${row.skillUses('M06-S1')} / ${pct(row.skillShare('M06-S1'))} / ${row.skillMana('M06-S1').effective} |`;
+    const positiveSavingUses = positiveTransitionCount(special.costTransitions);
+    return `| ${row.group.bossName} | ${pct(row.winRate)} | ${special.legalHighCostTargetOpportunities} | ${special.energyTransferUses} | ${pct(row.skillShare('M06-S3'))} | ${pairs(special.energyTransferTargets)} | ${pairs(special.discountedSkills)} | ${pairs(special.costTransitions)} | ${special.manaSaved} | ${special.energySavingUnredeemed} | ${special.highCostTargetButOtherChosen} | ${pct(ratio(special.discountedSkillUses, special.energyTransferUses))} | ${positiveSavingUses} / ${pct(ratio(positiveSavingUses, special.energyTransferUses))} | ${row.skillUses('M06-S2')} / ${pct(row.skillShare('M06-S2'))} | ${special.ironSupportEffectiveHealing} / ${special.ironSupportShieldGenerated} / ${special.ironSupportShieldAbsorbed} | ${row.skillUses('M06-S1')} / ${pct(row.skillShare('M06-S1'))} / ${row.skillMana('M06-S1').effective} |`;
   }).join('\n');
   const p08Rows = p08.map((row) => {
     const special = row.special.p08;
@@ -51,8 +52,8 @@ ${manifest.acceptance.map((item) => `| ${item.name} | ${item.result} |`).join('\
 
 ## P06 能量转移
 
-| Boss | 胜率 | 高费合法机会 | 转移次数 | 转移行动占比 | 目标 | 被减费技能 | 原费→实费 | 节省妖力 | 未兑现 | 有目标但选其他 | 兑现率 | 铁壁援护次数/占比 | 援护治疗/生盾/吸收 | 蓄能冲撞次数/占比/有效回能 |
-|---|---:|---:|---:|---:|---|---|---|---:|---:|---:|---:|---|---|---|
+| Boss | 胜率 | 高费合法机会 | 转移次数 | 转移行动占比 | 目标 | 被减费技能 | 原费→实费 | 节省妖力 | 未兑现 | 有目标但选其他 | 资格消费率 | 正节省次数/比例 | 铁壁援护次数/占比 | 援护治疗/生盾/吸收 | 蓄能冲撞次数/占比/有效回能 |
+|---|---:|---:|---:|---:|---|---|---|---:|---:|---:|---:|---:|---|---|---|
 ${p06Rows}
 
 结论：能量转移在${p06Opportunities}次高费合法机会中使用${p06Uses}次，后续兑现${p06Redeemed}次。${p06Uses > 0 ? '已从0使用恢复出明确使用窗口。' : '仍未获得实际使用空间。'}该结论只描述当前AI与测试队伍，不触发自动调数。
@@ -123,7 +124,10 @@ function doubleManaVerdict(rows) {
     const winLead = alternatives.every((row) => a.winRate - row.winRate >= 0.05);
     const faster = alternatives.every((row) => a.medianRounds <= row.medianRounds - 1);
     const lowOverflow = ratio(a.mana.overflow, a.mana.total) <= 0.05;
-    const earlierBurst = alternatives.every((row) => aBurst > 0 && aBurst <= distributionMedian(row.skill('M01-S3')?.firstUseOwnActionIndexCounts ?? {}) - 1);
+    const earlierBurst = alternatives.every((row) => {
+      const alternativeBurst = distributionMedian(row.skill('M01-S3')?.firstUseOwnActionIndexCounts ?? {});
+      return aBurst > 0 && (alternativeBurst === 0 || aBurst <= alternativeBurst - 1);
+    });
     if (winLead && faster && lowOverflow && earlierBurst) qualifyingBosses.push(a.group.bossName);
   }
   return { qualifyingBosses, flag: qualifyingBosses.length >= 2 ? 'DOUBLE_MANA_STRUCTURE_RISK_CONFIRMED' : 'DOUBLE_MANA_STRUCTURE_RISK_NOT_CONFIRMED' };
@@ -135,6 +139,7 @@ function ratio(value, total) { return total > 0 ? value / total : 0; }
 function median(values) { if (!values.length) return 0; const sorted = [...values].sort((a, b) => a - b); const middle = Math.floor(sorted.length / 2); return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2; }
 function distributionTotal(distribution = {}) { return Object.values(distribution).reduce((sumValue, count) => sumValue + count, 0); }
 function distributionMedian(distribution = {}) { const total = distributionTotal(distribution); if (!total) return 0; let seen = 0; const target = (total + 1) / 2; for (const [index, count] of Object.entries(distribution).sort(([left], [right]) => Number(left) - Number(right))) { seen += count; if (seen >= target) return Number(index); } return 0; }
+function positiveTransitionCount(transitions = {}) { return Object.entries(transitions).reduce((total, [transition, count]) => { const [before, after] = transition.split('->').map(Number); return total + (before > after ? count : 0); }, 0); }
 function pairs(value = {}) { return Object.entries(value).map(([key, count]) => `${key}:${count}`).join('；') || '-'; }
 function num(value) { return Number(value ?? 0).toFixed(2); }
 function pct(value) { return `${(Number(value ?? 0) * 100).toFixed(2)}%`; }

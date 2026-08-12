@@ -1,6 +1,7 @@
 import { appendFile, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { FIXED_TEAMS } from './single-boss-config.mjs';
 import { projectRoot, runSingleBoss } from './single-boss-suite-utils.mjs';
@@ -16,6 +17,7 @@ const outputRoot = args.outputDir ?? `validation-artifacts/ten-spirit-final-vali
 const outputDir = path.resolve(projectRoot, outputRoot);
 const baselineCommit = '9090af1c95a899dccc3c090dd925adaa64edbf4a';
 const policy = 'balanced-v4-hunter-aware';
+const reuse = args.reuse === 'true';
 const bosses = [
   { sourceBossId: 'FORGE_BOSS_WARRIOR', name: 'TEST_ONLY 熔核守卫', maxHp: 2100, attack: 180, calibrationWinRate: 0.4455 },
   { sourceBossId: 'RANGE_BOSS_SHOOTER', name: 'TEST_ONLY 灰羽猎王', maxHp: 1500, attack: 200, calibrationWinRate: 0.4995 },
@@ -30,14 +32,15 @@ for (let index = 0; index < groups.length; index += 1) {
   const group = groups[index];
   const relative = `${outputRoot}/groups/${group.focus}/${group.teamId}/${group.aiStrategy}/${group.sourceBossId}`;
   process.stdout.write(`[${index + 1}/${groups.length}] ${group.focus} ${group.teamLabel} ${group.aiStrategy} ${group.sourceBossId}\n`);
-  await runSingleBoss({
+  const specialtyFile = path.join(projectRoot, relative, 'specialty-summary.json');
+  if (!reuse || !existsSync(specialtyFile)) await runSingleBoss({
     boss: group.testBossId, runs, seed: group.seed, policy, playerTendency: 'balanced', roster: 'fixed', team: group.teamId,
     outputDir: relative, debugDecisions: true, decisionSampleLimit: 30, testStrategy: group.testStrategy,
     specialtyMetrics: true, aiStrategy: group.aiStrategy, testOnlySourceBossId: group.sourceBossId,
     testOnlyBossHp: group.maxHp, testOnlyBossAttack: group.attack, experience: false
   });
   const [specialty, raw] = await Promise.all([
-    readJson(path.join(projectRoot, relative, 'specialty-summary.json')),
+    readJson(specialtyFile),
     readJson(path.join(projectRoot, relative, 'raw-summary.json'))
   ]);
   runtimeAnomalies += raw.overview?.anomalyCount ?? raw.anomalies?.length ?? 0;
