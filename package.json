@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "dev:local": "vite --host 127.0.0.1 --port 5173 --strictPort",
@@ -27,17 +28,44 @@
     "migrate:trace:v2": "node scripts/migrate-v1-trace-to-v2.mjs",
     "test:boss-report:v2-regression": "node scripts/run-boss-report-v2-regression.mjs",
     "report:experience": "node scripts/render-experience-summary.mjs",
-    "build": "tsc --noEmit && vite build",
-    "lan:sync": "tsc --noEmit && vite build --outDir dist-lan",
+    "build": "tsc --noEmit && vite build --base=./",
+    "lan:sync": "tsc --noEmit && vite build --base=./ --outDir dist-lan",
     "lan:serve": "vite preview --outDir dist-lan --host 0.0.0.0 --port 5174 --strictPort",
     "preview": "vite preview --host 127.0.0.1",
     "preview:lan": "vite preview --outDir dist-lan --host 0.0.0.0 --port 5174 --strictPort",
-    "preview:local": "vite preview --host 127.0.0.1"
+    "preview:local": "vite preview --host 127.0.0.1",
+    "desktop:preview": "npm run build && electron .",
+    "desktop:build": "npm run build && electron-builder --win portable"
   },
   "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
     "jszip": "^3.10.1",
     "saxes": "^6.0.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
+  },
+  "build": {
+    "appId": "com.liuli.battledemo",
+    "productName": "琉璃战斗Demo",
+    "artifactName": "Liuli-Battle-Demo-${version}-win-x64.${ext}",
+    "directories": {
+      "output": "desktop-release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }

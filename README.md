@@ -33,15 +33,16 @@ PowerShell 如果阻止 `npm.ps1`，继续使用上述 `npm.cmd` 命令即可。
 
 ## 局域网测试
 
-双击 `start-preview.bat`，或运行：
+运行：
 
 ```powershell
-npm.cmd run dev:lan
+npm.cmd run lan:sync
+npm.cmd run lan:serve
 ```
 
-将终端显示的局域网地址发给同一网络下的测试者，例如 `http://192.168.x.x:5173/`。Windows 防火墙询问时需要允许 Node.js 访问专用网络。
+将运行电脑的 IPv4 地址和端口 `5174` 发给同一网络下的测试者，例如 `http://192.168.x.x:5174/`。Windows 防火墙询问时需要允许 Node.js 访问专用网络。
 
-## 验证与打包
+## 验证与网页打包
 
 ```powershell
 npm.cmd test
@@ -49,6 +50,22 @@ npm.cmd run build
 ```
 
 生产文件生成在 `dist/`。项目是纯前端静态页面，可部署到 Vercel 或 Netlify。
+
+## Windows 桌面版
+
+生成无需安装 Node.js 的便携式 EXE：
+
+```powershell
+npm.cmd run desktop:build
+```
+
+输出文件：
+
+```text
+desktop-release/Liuli-Battle-Demo-1.0.0-win-x64.exe
+```
+
+当前测试版尚未购买代码签名证书，从网络下载后 Windows 可能显示“未知发布者”提示。
 
 ## 配置来源
 
