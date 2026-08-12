@@ -31,7 +31,7 @@ const ENEMY_POSITIONS: Array<{
   { label: '6', row: 'back', slotPosition: 'back_2' }
 ];
 
-interface BattleUIOptions {
+export interface BattleUIOptions {
   resultTitle?: (state: BattleState) => string;
   resultButtonLabel?: (state: BattleState) => string;
   onResultAction?: (state: BattleState) => void;
@@ -346,4 +346,846 @@ export class BattleUI {
       const slotIndex = Number(cell.dataset.slotIndex);
       const row = cell.dataset.row as Row;
       const slot = state.slots[slotIndex];
-      const spiritId = slot?.row === row ? slot.spiritId ?? undefined
+      const spiritId = slot?.row === row ? slot.spiritId ?? undefined : undefined;
+      const threats = this.game.playerTelegraphThreats(slotIndex, row, spiritId);
+      const current = cell.querySelector<HTMLElement>('.player-lock-warning');
+      cell.classList.toggle('has-lock-warning', threats.length > 0);
+      if (threats.length === 0) {
+        current?.remove();
+        return;
+      }
+      const next = this.createPlayerLockWarning(threats);
+      if (current?.dataset.threatKey === next.dataset.threatKey) return;
+      current?.remove();
+      cell.append(next);
+    });
+  }
+
+  private renderEnemyDetail(state: BattleState, enemyId: string) {
+    const detail = this.game.enemyDetailView(enemyId);
+    if (!detail || !state.enemies[enemyId]) {
+      this.selectedEnemyId = null;
+      return null;
+    }
+    const overlay = element('div', 'enemy-detail-overlay');
+    overlay.addEventListener('click', () => {
+      this.selectedEnemyId = null;
+      this.renderImmediately();
+    });
+    const panel = element('section', 'enemy-detail-panel');
+    panel.addEventListener('click', (event) => event.stopPropagation());
+
+    const head = element('header', 'enemy-detail-head');
+    const title = element('div', 'enemy-detail-title');
+    title.append(textEl('h2', '', detail.name));
+    const close = button('×', 'enemy-detail-close', () => {
+      this.selectedEnemyId = null;
+      this.renderImmediately();
+    });
+    close.title = '关闭';
+    close.setAttribute('aria-label', '关闭敌方详情');
+    head.append(title, close);
+    panel.append(head);
+
+    const coefficients = element('div', 'enemy-coefficient-grid');
+    coefficients.append(this.detailValue('物攻系数', `×${formatMultiplier(detail.coefficients.physicalAttack)}`));
+    coefficients.append(this.detailValue('魔攻系数', `×${formatMultiplier(detail.coefficients.magicAttack)}`));
+    coefficients.append(this.detailValue('物防系数', `×${formatMultiplier(detail.coefficients.physicalDefense)}`));
+    coefficients.append(this.detailValue('魔防系数', `×${formatMultiplier(detail.coefficients.magicDefense)}`));
+    coefficients.append(this.detailValue('速度系数', `×${formatMultiplier(detail.coefficients.speed)}`));
+    panel.append(this.detailSection('属性系数', coefficients));
+
+    const statuses = element('div', 'enemy-detail-list');
+    if (detail.statuses.length === 0) {
+      statuses.append(textEl('p', 'enemy-detail-empty', '当前没有状态。'));
+    } else {
+      detail.statuses.forEach((status) => {
+        const item = element('article', 'enemy-detail-item');
+        item.append(textEl('strong', '', status.name));
+        item.append(textEl('p', '', status.detail));
+        statuses.append(item);
+      });
+    }
+    panel.append(this.detailSection('状态详情', statuses));
+    overlay.append(panel);
+    return overlay;
+  }
+
+  private detailSection(title: string, content: HTMLElement) {
+    const section = element('section', 'enemy-detail-section');
+    section.append(textEl('h3', '', title));
+    section.append(content);
+    return section;
+  }
+
+  private detailValue(label: string, value: string) {
+    const item = element('div', 'enemy-detail-value');
+    item.append(textEl('span', '', label));
+    item.append(textEl('strong', '', value));
+    return item;
+  }
+
+  private renderNeutralModule(state: BattleState) {
+    const module = element('section', 'module-panel neutral-module');
+    module.append(this.moduleHead('中立区域'));
+
+    const preview = element('ol', 'log-preview');
+    state.logs.slice(0, 4).forEach((entry) => {
+      const item = element('li', 'log-entry');
+      item.textContent = entry;
+      preview.append(item);
+    });
+    module.append(preview);
+
+    const details = element('details', 'log-details');
+    const summary = element('summary', 'log-summary');
+    summary.textContent = '展开全部日志';
+    const list = element('ol', 'log-list');
+    state.logs.forEach((entry) => {
+      const item = element('li', 'log-entry');
+      item.textContent = entry;
+      list.append(item);
+    });
+    details.append(summary, list);
+    module.append(details);
+    return module;
+  }
+
+  private renderRoundOrder(state: BattleState) {
+    const panel = element('aside', 'module-panel round-order-panel round-order-sidebar');
+    const head = element('div', 'round-order-head');
+    head.append(textEl('strong', '', `第 ${state.round.index} 回合行动顺序`));
+    head.append(textEl('span', '', '速度变化下回合生效'));
+    panel.append(head);
+
+    const track = element('ol', 'round-order-track');
+    state.round.actionSlots.forEach((actionSlot, index) => {
+      const item = element('li', `round-order-item is-${actionSlot.status} is-${actionSlot.type}`);
+      const name = actionSlot.type === 'boss' ? this.game.enemyName(actionSlot.unitId) : this.spiritData(actionSlot.unitId).name;
+      const accent = actionSlot.type === 'boss' ? '#d84a31' : this.spiritData(actionSlot.unitId).accent;
+      item.style.setProperty('--order-accent', accent);
+      item.append(textEl('span', 'round-order-index', String(index + 1)));
+      const unit = element('span', 'round-order-unit');
+      unit.append(textEl('strong', '', name));
+      unit.append(textEl('small', '', this.roundActionStatusText(actionSlot.status)));
+      if (actionSlot.type === 'boss') {
+        const telegraph = this.game.enemyTelegraphView(actionSlot.unitId);
+        if (telegraph) {
+          unit.append(textEl('small', 'round-order-forced-action', `待执行：${telegraph.skillName}`));
+        }
+      }
+      item.append(unit);
+      track.append(item);
+    });
+    panel.append(track);
+    return panel;
+  }
+
+  private renderOperationArea(state: BattleState) {
+    const area = element('section', 'operation-area');
+
+    const info = element('div', 'operation-info');
+    info.append(this.renderManaBlock(state));
+    if (this.notice) {
+      info.append(textEl('div', 'notice', this.notice));
+    }
+    area.append(info);
+
+    area.append(this.renderActionList(state));
+    area.append(this.renderActionDetail(state));
+
+    return area;
+  }
+
+  private renderActionList(state: BattleState) {
+    const panel = element('div', 'action-panel action-list-panel');
+    panel.append(sectionTitle('行动列表'));
+
+    if (state.phase === 'forced-replacement') {
+      panel.append(textEl('p', 'muted', '选择替换登场的精灵'));
+      return panel;
+    }
+
+    if (state.phase === 'target-select') {
+      panel.append(textEl('p', 'muted', '选择技能目标'));
+      return panel;
+    }
+
+    const actor = this.game.getActingSpirit();
+    if (!actor || state.phase !== 'player-action') {
+      panel.append(textEl('p', 'idle-text', '等待本回合下一行动位'));
+      return panel;
+    }
+
+    const data = this.spiritData(actor.id);
+    const skillList = element('div', 'skill-list');
+    data.skillIds.forEach((skillId) => {
+      const skill = this.config.skillConfig[skillId];
+      const skillState = this.game.getSkillButtonState(skill, actor);
+      const skillButton = button('', 'skill-button', () => this.call(() => this.game.useSkill(skill.id, true)));
+      if (!skillState.usable) {
+        skillButton.classList.add('is-disabled');
+      }
+      if (skillState.enhanced) skillButton.classList.add('is-enhanced');
+      skillButton.title = skillState.enhanced
+        ? `${skillState.enhanceReason ?? ''}：${skillState.enhanceValue ?? ''}`
+        : skillState.unavailableReason ?? '';
+      skillButton.addEventListener('mouseenter', () => this.paintManaPreview(skill, actor));
+      skillButton.addEventListener('mouseleave', () => this.clearManaPreview());
+      skillButton.append(textEl('strong', '', skill.name));
+      skillButton.append(this.renderSkillMeta(actor, skill, skillState));
+      skillList.append(skillButton);
+    });
+    panel.append(skillList);
+
+    const ops = element('div', 'operation-grid');
+    ops.append(button('换宠', 'operation-button', () => this.renderSwapMenu()));
+    ops.append(button('切换前后排', 'operation-button', () => this.call(() => this.game.switchRow())));
+    panel.append(ops);
+
+    return panel;
+  }
+
+  private renderActionDetail(state: BattleState) {
+    const panel = element('div', 'action-panel detail-panel');
+    panel.append(sectionTitle('技能信息'));
+
+    if (state.phase === 'forced-replacement') {
+      const replacement = state.replacement;
+      if (replacement) {
+        panel.append(textEl('p', 'detail-title', replacement.reason));
+        const list = element('div', 'choice-list');
+        replacement.candidates.forEach((id) => {
+          list.append(this.renderSwapCandidate(state, id, () => this.game.resolveForcedReplacement(id)));
+        });
+        panel.append(list);
+      }
+      return panel;
+    }
+
+    if (state.phase === 'target-select') {
+      const skill = state.pendingSkillId ? this.config.skillConfig[state.pendingSkillId] : null;
+      panel.append(textEl('p', 'detail-title', skill ? skill.name : '选择目标'));
+      const list = element('div', 'choice-list');
+      if (skill?.target === 'boss') {
+        const frontAlive = this.game.getActiveEnemyIds().some((id) => this.game.getEnemy(id).row === 'front');
+        panel.append(textEl('p', 'target-rule-note', frontAlive ? '敌方前排存活：当前技能只能选择前排。' : '敌方无存活前排：后排目标已开放。'));
+        this.game.getLegalEnemyTargetIds().forEach((id) => {
+          const enemy = this.game.getEnemy(id);
+          const skillState = this.game.getSkillButtonState(skill, this.game.getActingSpirit(), id);
+          const label = `${enemy.name} ${enemy.hp}/${enemy.maxHp}${skillState.enhanced && skillState.targetDependent ? `｜强化：${skillState.enhanceValue}` : ''}`;
+          list.append(button(label, `choice-button${skillState.enhanced && skillState.targetDependent ? ' is-enhanced-target' : ''}`, () => this.call(() => this.game.chooseSkillTarget(id))));
+        });
+      } else {
+        this.game.getHealTargets().forEach((id) => {
+          const spirit = this.game.getSpirit(id);
+          const data = this.spiritData(id);
+          const skillState = skill ? this.game.getSkillButtonState(skill, this.game.getActingSpirit(), id) : null;
+          const label = `${data.name} ${spirit.hp}/${data.maxHp}${skillState?.enhanced && skillState.targetDependent ? `｜强化：${skillState.enhanceValue}` : ''}`;
+          list.append(button(label, `choice-button${skillState?.enhanced && skillState.targetDependent ? ' is-enhanced-target' : ''}`, () => this.call(() => this.game.chooseSkillTarget(id))));
+        });
+      }
+      panel.append(list);
+      panel.append(button('返回', 'ghost-button full', () => {
+        this.notice = '';
+        this.game.cancelTargetSelect();
+      }));
+      return panel;
+    }
+
+    const actor = this.game.getActingSpirit();
+    if (!actor || state.phase !== 'player-action') {
+      panel.append(textEl('p', 'muted', '等待下一行动位'));
+      return panel;
+    }
+
+    const data = this.spiritData(actor.id);
+    data.skillIds.forEach((skillId) => {
+      const skill = this.config.skillConfig[skillId];
+      panel.append(this.renderSkillDetail(actor, skill));
+    });
+    return panel;
+  }
+
+  private renderSkillDetail(actor: RuntimeSpirit, skill: SkillData) {
+    const card = element('article', 'skill-detail-card');
+    card.append(textEl('strong', '', skill.name));
+    card.append(this.renderSkillMeta(actor, skill, this.game.getSkillButtonState(skill, actor)));
+    card.append(textEl('p', '', this.skillEffectText(skill)));
+    return card;
+  }
+
+  private renderSwapMenu() {
+    const state = this.game.state;
+    const listPanel = document.querySelector('.action-list-panel');
+    const detailPanel = document.querySelector('.detail-panel');
+    if (!listPanel || !detailPanel) return;
+
+    listPanel.innerHTML = '';
+    listPanel.append(sectionTitle('换宠'));
+    listPanel.append(textEl('p', 'muted', '从后备精灵中选择一只登场'));
+    listPanel.append(button('返回行动列表', 'ghost-button full', () => {
+      this.notice = '';
+      this.renderImmediately(state);
+    }));
+
+    detailPanel.innerHTML = '';
+    detailPanel.append(sectionTitle('后备精灵'));
+    const list = element('div', 'choice-list');
+    const bench = this.game.getBenchSpiritIds();
+    if (bench.length === 0) {
+      list.append(textEl('p', 'muted', '没有可用后备。'));
+    }
+    bench.forEach((id) => {
+      list.append(this.renderSwapCandidate(state, id, () => this.game.swapWithBench(id)));
+    });
+    detailPanel.append(list);
+  }
+
+  private renderSwapCandidate(state: BattleState, spiritId: string, action: () => { ok: boolean; message?: string }) {
+    const runtime = state.spirits[spiritId];
+    const data = this.spiritData(spiritId);
+    const card = element('article', 'swap-card');
+    card.style.setProperty('--accent', data.accent);
+
+    const pick = button(`${data.name} ${runtime.hp}/${data.maxHp}`, 'choice-button swap-pick', () => this.call(action));
+    card.append(pick);
+
+    const skills = element('div', 'swap-skill-list');
+    data.skillIds.forEach((skillId) => {
+      const skill = this.config.skillConfig[skillId];
+      const row = element('div', 'swap-skill');
+      row.append(textEl('strong', '', skill.name));
+      row.append(this.renderSkillMeta(runtime, skill));
+      row.append(textEl('p', '', this.skillEffectText(skill)));
+      skills.append(row);
+    });
+    card.append(skills);
+    return card;
+  }
+
+  private renderManaBlock(state: BattleState) {
+    const block = element('div', 'stat-block mana-block');
+    const head = element('div', 'mana-head');
+    head.append(textEl('span', '', '团队妖力'));
+    head.append(textEl('strong', '', `${state.mana.current}/${state.mana.max}`));
+    block.append(head);
+
+    const grid = element('div', 'mana-grid');
+    for (let index = 0; index < state.mana.max; index += 1) {
+      const cell = element('span', index < state.mana.current ? 'mana-cell filled' : 'mana-cell');
+      cell.dataset.index = String(index);
+      grid.append(cell);
+    }
+    block.append(grid);
+    return block;
+  }
+
+  private renderBenchPill(state: BattleState, spiritId: string) {
+    const runtime = state.spirits[spiritId];
+    const data = this.spiritData(spiritId);
+    const pill = element('span', 'bench-pill');
+    if (runtime.hp <= 0) pill.classList.add('is-dead');
+    pill.style.setProperty('--accent', data.accent);
+    pill.textContent = `${data.name} ${runtime.hp}/${data.maxHp}`;
+    return pill;
+  }
+
+  private renderGrowthRecords(runtime: RuntimeSpirit) {
+    const wrap = element('div', 'growth-row');
+    const growths: Array<{ label: string; detail?: string }> = [];
+    if (runtime.physicalAttackBonus > 0) growths.push({ label: `物攻 +${formatPercent(runtime.physicalAttackBonus)}`, detail: '当前物理攻击强化。' });
+    if (runtime.magicAttackBonus > 0) growths.push({ label: `魔攻 +${formatPercent(runtime.magicAttackBonus)}`, detail: '当前魔法攻击强化。' });
+    if (runtime.nextSkillPowerBonus > 0) growths.push({ label: `下次威力 +${runtime.nextSkillPowerBonus}`, detail: '下一次具有威力的技能获得该数值加成。' });
+    if (runtime.shieldNextBossAction > 0) growths.push({ label: `护盾 ${runtime.shieldNextBossAction}`, detail: '用于抵挡下一次 Boss 行动造成的伤害。' });
+    if (runtime.damageAmpStacks > 0) growths.push({ label: `爆发 ${runtime.damageAmpStacks}`, detail: statusDescription('damage-amp') });
+    if (runtime.chargeTurns > 0 || runtime.freshChargeTurns > 0) growths.push({ label: '蓄势', detail: statusDescription('charge') });
+    if (runtime.regenTurns > 0 || runtime.freshRegenTurns > 0) growths.push({ label: `回复 ${Math.max(runtime.regenTurns, runtime.freshRegenTurns)}`, detail: statusDescription('regen') });
+    if (runtime.shieldValue > 0) growths.push({ label: `护盾 ${runtime.shieldValue}`, detail: '优先吸收受到的伤害；持有者正常行动结束会清除既有护盾。' });
+    if (runtime.statuses['energy-saving']) growths.push({ label: '节能', detail: statusDescription('energy-saving') });
+    Object.entries(runtime.skillPowerGrowth)
+      .filter(([, value]) => value > 0)
+      .forEach(([skillId, value]) => {
+        growths.push({ label: `${this.config.skillConfig[skillId]?.name ?? skillId} +${value}`, detail: '本场战斗中该技能当前威力的永久成长。' });
+      });
+    if (growths.length === 0) {
+      wrap.append(textEl('span', 'growth-chip is-empty', '无成长'));
+      return wrap;
+    }
+    growths.forEach((growth) => {
+      const chip = textEl('span', 'growth-chip', growth.label);
+      if (growth.detail) {
+        chip.title = growth.detail;
+        chip.setAttribute('aria-label', `${growth.label}：${growth.detail}`);
+      }
+      wrap.append(chip);
+    });
+    return wrap;
+  }
+
+  private renderUnitChip(name: string, accent: string) {
+    const chip = element('div', 'unit-chip');
+    chip.style.setProperty('--accent', accent);
+    chip.textContent = name.slice(0, 1);
+    return chip;
+  }
+
+  private moduleHead(title: string, subtitle?: string) {
+    const head = element('div', 'module-head');
+    head.append(textEl('strong', '', title));
+    if (subtitle) head.append(textEl('span', '', subtitle));
+    return head;
+  }
+
+  private statBlock(label: string, value: string, title?: string) {
+    const block = element('div', 'stat-block');
+    if (title) block.title = title;
+    const labelRow = element('div', 'stat-label-row');
+    labelRow.append(textEl('span', '', label));
+    if (title) {
+      labelRow.append(textEl('span', 'info-dot', 'i'));
+    }
+    block.append(labelRow);
+    block.append(textEl('strong', '', value));
+    return block;
+  }
+
+  private statPill(label: string, value: string, title?: string) {
+    const pill = element('div', 'stat-pill');
+    if (title) pill.title = title;
+    pill.append(textEl('span', '', label));
+    pill.append(textEl('strong', '', value));
+    return pill;
+  }
+
+  private metricBar(label: string, value: number, max: number, className: string, valueText: string) {
+    const wrap = element('div', 'metric-line');
+    wrap.append(textEl('span', 'metric-label', label));
+    const track = element('div', `compact-track ${className}`);
+    const fill = element('span', 'compact-fill');
+    fill.style.width = `${hpPercent(value, max)}%`;
+    track.append(fill);
+    wrap.append(track);
+    wrap.append(textEl('span', 'metric-value', valueText));
+    return wrap;
+  }
+
+  private roundActionText(state: BattleState, type: 'spirit' | 'boss', unitId: string) {
+    const actionSlot = state.round.actionSlots.find((slot) => slot.type === type && slot.unitId === unitId);
+    if (!actionSlot) return '本回合无行动位';
+    return this.roundActionStatusText(actionSlot.status);
+  }
+
+  private roundActionStatusText(status: BattleState['round']['actionSlots'][number]['status']) {
+    const labels = {
+      pending: '待行动',
+      executing: '行动中',
+      completed: '已行动',
+      invalid: '已失效',
+      skipped: '已跳过'
+    };
+    return labels[status];
+  }
+
+  private paintManaPreview(skill: SkillData, actor?: RuntimeSpirit | null) {
+    this.clearManaPreview();
+    const cells = Array.from(this.root.querySelectorAll<HTMLElement>('.mana-cell'));
+    const current = this.game.state.mana.current;
+    const skillState = this.game.getSkillButtonState(skill, actor ?? null);
+    const gain = skillState.manaGainActual;
+    const cost = skillState.actualCost;
+    if (cost > 0) {
+      const start = current >= cost ? current - cost : 0;
+      const end = Math.min(this.game.state.mana.max, start + cost);
+      for (let index = start; index < end; index += 1) {
+        cells[index]?.classList.add('preview-cost');
+      }
+    }
+    if (gain > 0) {
+      const start = current + gain <= this.game.state.mana.max ? current : Math.max(0, this.game.state.mana.max - gain);
+      const end = Math.min(this.game.state.mana.max, start + gain);
+      for (let index = start; index < end; index += 1) {
+        cells[index]?.classList.add('preview-gain');
+      }
+    }
+  }
+
+  private clearManaPreview() {
+    this.root.querySelectorAll('.mana-cell').forEach((cell) => {
+      cell.classList.remove('preview-cost', 'preview-gain');
+    });
+  }
+
+  private renderSkillMeta(actor: RuntimeSpirit, skill: SkillData, skillState = this.game.getSkillButtonState(skill, actor)) {
+    const wrap = element('div', 'skill-meta-row');
+    wrap.append(textEl('span', 'skill-meta-pill', skill.kind === 'attack' ? '攻击' : '辅助'));
+    if (skill.power) {
+      const powerText = skillState.powerBonus > 0
+        ? `威力 ${skillState.powerTotal}（+${skillState.powerBonus}）`
+        : `威力 ${skillState.powerTotal}`;
+      wrap.append(textEl('span', 'skill-meta-pill', powerText));
+    }
+    if (!skill.power && skill.fixedDamage) wrap.append(textEl('span', 'skill-meta-pill', `固定伤害 ${skill.fixedDamage}`));
+    if (skill.costAllMana) wrap.append(this.manaIconGroup('cost', null, '全部妖力'));
+    if (!skill.costAllMana && (skill.cost > 0 || skillState.actualCost > 0 || skillState.costDiscounted)) {
+      wrap.append(this.manaIconGroup('cost', skillState.actualCost, undefined, skillState.costDiscounted));
+    }
+    if (skill.gain > 0 || skill.gainWhenManaBelow !== undefined) {
+      if (skillState.manaGainOriginal !== skillState.manaGainActual) {
+        wrap.append(this.manaIconGroup('gain', 0));
+      } else {
+        wrap.append(this.manaIconGroup('gain', skillState.manaGainActual));
+      }
+    }
+    if (skill.restoreManaTo !== undefined) wrap.append(this.manaIconGroup('gain', null, `恢复至${skill.restoreManaTo}`));
+    if (skill.cooldown && skill.cooldown > 0) wrap.append(textEl('span', 'skill-meta-pill', `CD ${skill.cooldown}`));
+    if (skillState.enhanced) {
+      const enhanced = textEl('span', 'skill-meta-pill skill-enhance-pill', `强化 ${skillState.enhanceValue ?? ''}`);
+      enhanced.title = skillState.enhanceReason ?? '';
+      wrap.append(enhanced);
+    } else if (skillState.targetDependent) {
+      wrap.append(textEl('span', 'skill-meta-pill skill-target-dependent-pill', '选择目标后判定'));
+    }
+    return wrap;
+  }
+
+  private manaIconGroup(kind: 'cost' | 'gain', count: number | null, label?: string, discounted = false, rawLabel = false) {
+    const group = element('span', `mana-icon-group ${kind === 'cost' ? 'is-cost' : 'is-gain'}${discounted ? ' is-discounted-cost' : ''}`);
+    group.append(element('span', 'mana-icon-cell'));
+    group.append(textEl('span', 'mana-icon-more', count === null ? (rawLabel ? label ?? '' : `*${label ?? ''}`) : `*${count}`));
+    return group;
+  }
+
+  private skillEffectText(skill: SkillData) {
+    return skillDescriptionWithStatusDetails(skill);
+  }
+
+  private spiritData(id: string) {
+    const data = this.config.creatureConfig.find((spirit) => spirit.id === id);
+    if (!data) throw new Error('Unknown spirit: ' + id);
+    return data;
+  }
+
+  private activeName(state: BattleState) {
+    if (!state.activeUnit) return state.phase === 'running' ? '等待行动位' : phaseName(state.phase);
+    if (state.activeUnit.type === 'boss') return this.game.enemyName(state.activeUnit.id);
+    return this.spiritData(state.activeUnit.id).name;
+  }
+
+  private isFront(spiritId: string) {
+    return this.game.state.slots.some((slot) => slot.spiritId === spiritId && slot.row === 'front');
+  }
+
+  private syncBattleFx(state: BattleState) {
+    const fx = state.battleFx;
+    if (!fx || fx.serial <= this.seenFxSerial) return;
+    this.seenFxSerial = fx.serial;
+    this.keepBattleFxClassesAlive(fx);
+    this.playManaChangeFx(fx);
+
+    if (fx.kind === 'player-attack') {
+      this.playPlayerAttackFx(fx);
+      return;
+    }
+
+    if (fx.kind === 'player-heal' || fx.kind === 'player-support' || fx.kind === 'player-buff') {
+      this.playPlayerUtilityFx(fx);
+      return;
+    }
+
+    if (fx.kind === 'player-debuff') {
+      this.playPlayerDebuffFx(fx);
+      return;
+    }
+
+    if (fx.kind === 'boss-attack') {
+      this.playBossAttackFx(fx);
+      return;
+    }
+
+    if (fx.kind === 'boss-buff') {
+      this.playBossBuffFx(fx);
+    }
+  }
+
+  private keepBattleFxClassesAlive(fx: BattleFxEvent) {
+    const duration = fx.telegraphSkillName ? 900 : 760;
+    const startedAt = window.performance.now();
+    const apply = () => this.applyBattleFxClasses(fx);
+    apply();
+    const timer = window.setInterval(() => {
+      if (window.performance.now() - startedAt > duration) {
+        window.clearInterval(timer);
+        this.clearBattleFxClasses();
+        return;
+      }
+      apply();
+    }, 60);
+  }
+
+  private applyBattleFxClasses(fx: BattleFxEvent) {
+    if (fx.actorId) {
+      this.spiritCell(fx.actorId)?.classList.add('is-acting');
+    }
+    if (fx.kind === 'player-attack') {
+      fx.targetEnemyIds?.forEach((id) => this.enemyCard(id)?.classList.add('is-shaking'));
+    }
+    if (fx.kind === 'player-debuff') {
+      fx.targetEnemyIds?.forEach((id) => this.enemyCard(id)?.classList.add('is-powering'));
+    }
+    if (fx.kind === 'boss-attack') {
+      this.enemyCard(fx.enemyActorId)?.classList.add('is-attacking');
+      fx.targetIds?.forEach((id) => this.spiritCell(id)?.classList.add('is-hit'));
+    }
+    if (fx.kind === 'boss-buff') {
+      this.enemyCard(fx.enemyActorId)?.classList.add('is-powering');
+      if (fx.telegraphSkillName) this.enemyCard(fx.enemyActorId)?.classList.add('is-telegraph-arming');
+    }
+    if (fx.kind === 'player-heal' || fx.kind === 'player-support' || fx.kind === 'player-buff') {
+      const targetIds = fx.targetIds?.length ? fx.targetIds : fx.actorId ? [fx.actorId] : [];
+      targetIds.forEach((id) => this.spiritCell(id)?.classList.add(fx.kind === 'player-heal' ? 'is-healed' : 'is-boosted'));
+    }
+    this.applyManaFxClasses(fx);
+  }
+
+  private applyManaFxClasses(fx: BattleFxEvent) {
+    const cells = Array.from(this.root.querySelectorAll<HTMLElement>('.mana-cell'));
+    if (fx.manaCost > 0) {
+      const start = Math.max(0, fx.manaBefore - fx.manaCost);
+      for (let index = start; index < fx.manaBefore; index += 1) {
+        cells[index]?.classList.add('mana-spend-fx');
+      }
+    }
+    if (fx.manaGain > 0) {
+      const start = Math.max(0, fx.manaAfter - fx.manaGain);
+      for (let index = start; index < fx.manaAfter; index += 1) {
+        cells[index]?.classList.add('mana-gain-fx');
+      }
+    }
+  }
+
+  private clearBattleFxClasses() {
+    this.root
+      .querySelectorAll('.is-acting, .is-shaking, .is-attacking, .is-powering, .is-telegraph-arming, .is-hit, .is-healed, .is-boosted, .is-value-changing, .mana-spend-fx, .mana-gain-fx')
+      .forEach((node) => node.classList.remove('is-acting', 'is-shaking', 'is-attacking', 'is-powering', 'is-telegraph-arming', 'is-hit', 'is-healed', 'is-boosted', 'is-value-changing', 'mana-spend-fx', 'mana-gain-fx'));
+  }
+
+  private playPlayerAttackFx(fx: BattleFxEvent) {
+    if (!fx.actorId) return;
+    const source = this.spiritCell(fx.actorId);
+    const boss = this.enemyCard(fx.targetEnemyIds?.[0]);
+    if (!source || !boss) return;
+
+    if (fx.actorRow === 'front') {
+      this.spawnFlyingSprite(source, boss, source.querySelector('.unit-chip')?.textContent || fx.skillName?.slice(0, 1) || '', 'fx-spirit-strike');
+    } else {
+      this.spawnFlyingSprite(source, boss, fx.skillName || '', 'fx-skill-bolt');
+    }
+    this.addTransientClass(boss, 'is-shaking', 560);
+    this.floatBossDamage(boss, fx.amount ? `-${fx.amount}` : fx.skillName || '');
+  }
+
+  private playPlayerUtilityFx(fx: BattleFxEvent) {
+    const targetIds = fx.targetIds?.length ? fx.targetIds : fx.actorId ? [fx.actorId] : [];
+    targetIds.forEach((id) => {
+      const target = this.spiritCell(id);
+      if (!target) return;
+      this.addTransientClass(target, fx.kind === 'player-heal' ? 'is-healed' : 'is-boosted', 620);
+      if (fx.kind === 'player-heal') this.floatAt(target, `+${fx.amount ?? 0}`, 'heal');
+    });
+  }
+
+  private playPlayerDebuffFx(fx: BattleFxEvent) {
+    const boss = this.enemyCard(fx.targetEnemyIds?.[0]);
+    if (boss) {
+      this.addTransientClass(boss, 'is-powering', 680);
+      this.spawnAura(boss, fx.skillName || '');
+    }
+  }
+
+  private playBossAttackFx(fx: BattleFxEvent) {
+    const boss = this.enemyCard(fx.enemyActorId);
+    if (boss) this.addTransientClass(boss, 'is-attacking', 520);
+    fx.targetIds?.forEach((id) => {
+      const target = this.spiritCell(id);
+      if (!target) return;
+      if (boss) this.spawnFlyingSprite(boss, target, fx.bossBehaviorName || '', 'fx-boss-bolt');
+      this.addTransientClass(target, 'is-hit', 560);
+      const amount = fx.targetAmounts?.[id] ?? fx.amount;
+      this.floatAt(target, amount !== undefined ? `-${amount}` : fx.bossBehaviorName || '', 'damage');
+    });
+  }
+
+  private playBossBuffFx(fx: BattleFxEvent) {
+    const boss = this.enemyCard(fx.enemyActorId);
+    if (boss) {
+      this.addTransientClass(boss, 'is-powering', 760);
+      if (fx.telegraphSkillName) this.addTransientClass(boss, 'is-telegraph-arming', 860);
+      this.spawnAura(boss, fx.telegraphSkillName ? `预告：${fx.telegraphSkillName}` : fx.bossBehaviorName || '', fx.telegraphSkillName ? 'is-telegraph-aura' : '');
+    }
+  }
+
+  private playManaChangeFx(fx: BattleFxEvent) {
+    const cells = Array.from(this.root.querySelectorAll<HTMLElement>('.mana-cell'));
+    if (fx.manaCost > 0) {
+      const start = Math.max(0, fx.manaBefore - fx.manaCost);
+      for (let index = start; index < fx.manaBefore; index += 1) {
+        this.addTransientClass(cells[index], 'mana-spend-fx', 720);
+      }
+    }
+    if (fx.manaGain > 0) {
+      const start = Math.max(0, fx.manaAfter - fx.manaGain);
+      for (let index = start; index < fx.manaAfter; index += 1) {
+        this.addTransientClass(cells[index], 'mana-gain-fx', 720);
+      }
+    }
+  }
+
+  private spawnFlyingSprite(source: HTMLElement, target: HTMLElement, text: string, className: string) {
+    const from = this.centerOf(source);
+    const to = this.centerOf(target);
+    const sprite = element('div', `fx-sprite ${className}`);
+    sprite.textContent = text;
+    sprite.style.left = `${from.x}px`;
+    sprite.style.top = `${from.y}px`;
+    sprite.style.setProperty('--move-x', `${to.x - from.x}px`);
+    sprite.style.setProperty('--move-y', `${to.y - from.y}px`);
+    const accent = getComputedStyle(source).getPropertyValue('--accent');
+    if (accent) sprite.style.setProperty('--accent', accent);
+    document.body.append(sprite);
+    window.setTimeout(() => sprite.remove(), 720);
+  }
+
+  private floatAt(target: HTMLElement, text: string, tone: 'damage' | 'heal' | 'buff') {
+    if (!text) return;
+    const point = this.centerOf(target);
+    const node = element('div', `fx-float ${tone}`);
+    node.textContent = text;
+    node.style.left = `${point.x}px`;
+    node.style.top = `${point.y}px`;
+    document.body.append(node);
+    window.setTimeout(() => node.remove(), 760);
+  }
+
+  private spawnAura(target: HTMLElement, text: string, className = '') {
+    const point = this.centerOf(target);
+    const aura = element('div', `fx-boss-aura ${className}`.trim());
+    aura.textContent = text;
+    aura.style.left = `${point.x}px`;
+    aura.style.top = `${point.y}px`;
+    document.body.append(aura);
+    window.setTimeout(() => aura.remove(), 860);
+  }
+
+  private floatBossDamage(boss: HTMLElement, text: string) {
+    if (!text) return;
+    const title = boss.querySelector<HTMLElement>('h2');
+    const rect = (title ?? boss).getBoundingClientRect();
+    const node = element('div', 'fx-float damage boss-damage');
+    node.textContent = text;
+    node.style.left = `${rect.left + Math.min(rect.width + 56, boss.getBoundingClientRect().width * 0.62)}px`;
+    node.style.top = `${rect.top + rect.height / 2}px`;
+    document.body.append(node);
+    window.setTimeout(() => node.remove(), 840);
+  }
+
+  private addTransientClass(target: Element | null | undefined, className: string, duration: number) {
+    if (!(target instanceof HTMLElement)) return;
+    target.classList.add(className);
+    window.setTimeout(() => target.classList.remove(className), duration);
+  }
+
+  private centerOf(target: HTMLElement) {
+    const rect = target.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+  }
+
+  private spiritCell(spiritId: string) {
+    return this.root.querySelector<HTMLElement>(`[data-spirit-id="${spiritId}"]`);
+  }
+
+  private enemyCard(enemyId?: string) {
+    if (enemyId) return this.root.querySelector<HTMLElement>(`[data-enemy-id="${enemyId}"][data-boss-card="true"]`);
+    return this.root.querySelector<HTMLElement>('[data-boss-card="true"]');
+  }
+
+  private syncHitFeedback(state: BattleState) {
+    const feedback = state.hitFeedback;
+    if (!feedback || feedback.serial <= this.seenHitSerial) return;
+    this.seenHitSerial = feedback.serial;
+    this.flashingHit = feedback;
+    window.setTimeout(() => {
+      if (this.flashingHit?.serial === feedback.serial) {
+        this.flashingHit = null;
+        this.render(this.game.state);
+      }
+    }, 520);
+  }
+
+  private renderResult(state: BattleState) {
+    const overlay = element('div', 'result-overlay');
+    const modal = element('section', 'result-modal');
+    modal.append(textEl('span', 'eyebrow', state.phase === 'victory' ? '胜利' : '失败'));
+    modal.append(textEl('h2', '', this.options.resultTitle?.(state) ?? (state.phase === 'victory' ? 'Boss 已被击败' : '玩家队伍全灭')));
+    modal.append(button(this.options.resultButtonLabel?.(state) ?? '重新开始', 'primary-button', () => {
+      if (this.options.onResultAction) {
+        this.options.onResultAction(state);
+        return;
+      }
+      this.resetBattleView();
+      this.game.reset();
+      this.game.start();
+    }));
+    overlay.append(modal);
+    return overlay;
+  }
+
+  private call(fn: () => { ok: boolean; message?: string }) {
+    const result = fn();
+    this.notice = result.ok ? result.message ?? '' : result.message ?? '操作不可用。';
+    if (this.notice) {
+      this.render(this.game.state);
+    }
+  }
+}
+
+function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = ''): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  return node;
+}
+
+function textEl<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text: string) {
+  const node = element(tag, className);
+  node.textContent = text;
+  return node;
+}
+
+function button(label: string, className: string, onClick: () => void) {
+  const node = element('button', className);
+  node.type = 'button';
+  node.textContent = label;
+  node.addEventListener('click', onClick);
+  return node;
+}
+
+function sectionTitle(text: string) {
+  const title = element('div', 'section-title');
+  title.append(textEl('span', '', text));
+  return title;
+}
+
+function phaseName(phase: BattleState['phase']) {
+  const names: Record<BattleState['phase'], string> = {
+    running: '等待行动位',
+    'player-action': '玩家行动',
+    'target-select': '选择目标',
+    'forced-replacement': '替换登场',
+    victory: '胜利',
+    defeat: '失败'
+  };
+  return names[phase];
+}
