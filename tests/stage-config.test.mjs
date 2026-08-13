@@ -13,9 +13,10 @@ async function withModules(context) {
     server: { middlewareMode: true }
   });
   context.after(() => vite.close());
-  const [stages, monsterData, battleModule, battleSystems, prebattle, uiModule, integrationModule] = await Promise.all([
+  const [stages, monsterData, monsterSystem, battleModule, battleSystems, prebattle, uiModule, integrationModule] = await Promise.all([
     vite.ssrLoadModule('/src/stages.ts'),
     vite.ssrLoadModule('/src/monsterData.ts'),
+    vite.ssrLoadModule('/src/monsterSystem.ts'),
     vite.ssrLoadModule('/src/battle.ts'),
     vite.ssrLoadModule('/src/battleSystems.ts'),
     vite.ssrLoadModule('/src/prebattle.ts'),
@@ -25,6 +26,7 @@ async function withModules(context) {
   return {
     stages,
     monsterData,
+    monsterSystem,
     BattleGame: battleModule.BattleGame,
     BattleUI: uiModule.BattleUI,
     createBattleLifecycleStop: integrationModule.createBattleLifecycleStop,
@@ -198,8 +200,8 @@ test('Aries player instances keep duplicate definitions, initial HP, and result 
   const config = battleSystemConfig();
   const definitionId = config.creatureConfig[0].id;
   const participants = [
-    { instanceId: 'owned-001', spiritDefinitionId: definitionId, currentHp: 37 },
-    { instanceId: 'owned-009', spiritDefinitionId: definitionId, currentHp: 52 }
+    { instanceId: 'owned-001', spiritDefinitionId: definitionId, currentHp: 37, level: 10 },
+    { instanceId: 'owned-009', spiritDefinitionId: definitionId, currentHp: 52, level: 20 }
   ];
   const game = new BattleGame({
     config,
@@ -211,6 +213,9 @@ test('Aries player instances keep duplicate definitions, initial HP, and result 
   assert.notStrictEqual(game.getSpirit('owned-001'), game.getSpirit('owned-009'));
   assert.equal(game.getSpirit('owned-001').spiritDefinitionId, definitionId);
   assert.equal(game.getSpirit('owned-009').spiritDefinitionId, definitionId);
+  assert.equal(game.getSpirit('owned-001').level, 10);
+  assert.equal(game.getSpirit('owned-009').level, 20);
+  assert.notEqual(game.getSpiritDefinition('owned-001').maxHp, game.getSpiritDefinition('owned-009').maxHp);
   assert.equal(game.getSpirit('owned-001').hp, 37);
   assert.equal(game.getSpirit('owned-009').hp, 52);
 
@@ -220,6 +225,8 @@ test('Aries player instances keep duplicate definitions, initial HP, and result 
   assert.deepEqual(snapshot.selectedSpiritIds, ['owned-001', 'owned-009']);
   assert.equal(snapshot.spirits['owned-001'].spiritDefinitionId, definitionId);
   assert.equal(snapshot.spirits['owned-009'].spiritDefinitionId, definitionId);
+  assert.equal(snapshot.spirits['owned-001'].level, 10);
+  assert.equal(snapshot.spirits['owned-009'].level, 20);
   assert.equal(snapshot.spirits['owned-001'].hp, 21);
   assert.equal(snapshot.spirits['owned-009'].hp, 46);
 
@@ -230,6 +237,10 @@ test('Aries player instances keep duplicate definitions, initial HP, and result 
   });
   assert.equal(next.getSpirit('owned-001').spiritDefinitionId, definitionId);
   assert.equal(next.getSpirit('owned-009').spiritDefinitionId, definitionId);
+  assert.equal(next.getSpirit('owned-001').level, 10);
+  assert.equal(next.getSpirit('owned-009').level, 20);
+  assert.equal(next.getSpiritDefinition('owned-001').maxHp, game.getSpiritDefinition('owned-001').maxHp);
+  assert.equal(next.getSpiritDefinition('owned-009').maxHp, game.getSpiritDefinition('owned-009').maxHp);
   assert.equal(next.getSpirit('owned-001').hp, 21);
   assert.equal(next.getSpirit('owned-009').hp, 46);
 });
@@ -241,7 +252,8 @@ test('Aries six-instance input uses three starters and three independent reserve
   const participants = Array.from({ length: 6 }, (_, index) => ({
     instanceId: `owned-${index + 1}`,
     spiritDefinitionId: definitions[index % definitions.length],
-    currentHp: 30 + index
+    currentHp: 30 + index,
+    level: index + 1
   }));
   const game = new BattleGame({
     config,
@@ -252,6 +264,110 @@ test('Aries six-instance input uses three starters and three independent reserve
   assert.deepEqual(game.state.slots.map((slot) => slot.spiritId), ['owned-1', 'owned-2', 'owned-3']);
   assert.deepEqual(game.getBenchSpiritIds(), ['owned-4', 'owned-5', 'owned-6']);
   assert.equal(Object.keys(game.state.spirits).length, 6);
+});
+
+test('canonical player level validates 1-100 integers without clamping', async (context) => {
+  const { BattleGame, battleSystemConfig } = await withModules(context);
+  const config = battleSystemConfig();
+  const definition = config.creatureConfig[0];
+  const makeGame = (level, currentHp = definition.maxHp) => new BattleGame({
+    config,
+    playerParticipants: [{
+      instanceId: `owned-${String(level)}`,
+      spiritDefinitionId: definition.id,
+      currentHp,
+      level
+    }],
+    enemies: [{ enemyId: 'FORGE_GRUNT_WARRIOR', position: 'front' }]
+  });
+
+  assert.equal(makeGame(1).getSpirit('owned-1').level, 1);
+  assert.equal(makeGame(100).getSpirit('owned-100').level, 100);
+  for (const level of [0, 101, 1.5, Number.NaN, undefined]) {
+    assert.throws(() => makeGame(level), /level must be an integer between 1 and 100/);
+  }
+});
+
+test('canonical player stats scale from Spirit Lv1 bases with the shared Battle rule', async (context) => {
+  const { BattleGame, battleSystemConfig, monsterSystem } = await withModules(context);
+  const config = battleSystemConfig();
+  const definition = config.creatureConfig[0];
+  const expectedStats = (level) => ({
+    ...definition,
+    ...monsterSystem.calculateLevelScaledUnitStats(definition, level)
+  });
+
+  for (const level of [1, 2, 10]) {
+    const instanceId = `owned-level-${level}`;
+    const game = new BattleGame({
+      config,
+      playerParticipants: [{
+        instanceId,
+        spiritDefinitionId: definition.id,
+        currentHp: 37,
+        level
+      }],
+      enemies: [{ enemyId: 'FORGE_GRUNT_WARRIOR', position: 'front' }]
+    });
+    assert.deepEqual(game.getSpiritDefinition(instanceId), expectedStats(level));
+    assert.equal(game.getSpirit(instanceId).hp, 37);
+  }
+  assert.notEqual(expectedStats(1).maxHp, expectedStats(2).maxHp);
+  assert.notEqual(expectedStats(2).physicalAttack, expectedStats(10).physicalAttack);
+});
+
+test('canonical currentHp accepts the level max and rejects overflow without clamping', async (context) => {
+  const { BattleGame, battleSystemConfig, monsterSystem } = await withModules(context);
+  const config = battleSystemConfig();
+  const definition = config.creatureConfig[0];
+  const level = 2;
+  const maxHp = monsterSystem.calculateLevelScaledUnitStats(definition, level).maxHp;
+  const options = {
+    config,
+    enemies: [{ enemyId: 'FORGE_GRUNT_WARRIOR', position: 'front' }]
+  };
+  const accepted = new BattleGame({
+    ...options,
+    playerParticipants: [{
+      instanceId: 'owned-max',
+      spiritDefinitionId: definition.id,
+      currentHp: maxHp,
+      level
+    }]
+  });
+  assert.equal(accepted.getSpirit('owned-max').hp, maxHp);
+  assert.throws(() => new BattleGame({
+    ...options,
+    playerParticipants: [{
+      instanceId: 'owned-over',
+      spiritDefinitionId: definition.id,
+      currentHp: maxHp + 1,
+      level
+    }]
+  }), /currentHp exceeds level maxHp/);
+});
+
+test('enemy level keeps the existing shared multiplier and rounding', async (context) => {
+  const { BattleGame, battleSystemConfig, monsterData, monsterSystem } = await withModules(context);
+  const config = battleSystemConfig();
+  const definition = monsterData.MONSTERS.FORGE_GRUNT_WARRIOR;
+  const game = new BattleGame({
+    config,
+    selectedSpiritIds: [config.creatureConfig[0].id],
+    enemies: [{ enemyId: definition.id, position: 'front', level: 2 }]
+  });
+  const enemy = game.getEnemy(game.getActiveEnemyIds()[0]);
+  assert.deepEqual(
+    {
+      maxHp: enemy.maxHp,
+      physicalAttack: enemy.physicalAttack,
+      physicalDefense: enemy.physicalDefense,
+      magicAttack: enemy.magicAttack,
+      magicDefense: enemy.magicDefense,
+      speed: enemy.speed
+    },
+    monsterSystem.calculateMonsterStats(definition, 2)
+  );
 });
 
 test('standalone definition-id selection remains a compatible full-HP input', async (context) => {

@@ -195,12 +195,14 @@ export interface BattlePlayerParticipant {
   instanceId: string;
   spiritDefinitionId: string;
   currentHp: number;
+  level: number;
 }
 
 export interface RuntimeSpirit {
   id: string;
   spiritDefinitionId: string;
   hp: number;
+  level?: number;
   action: number;
   shieldNextBossAction: number;
   physicalAttackBonus: number;

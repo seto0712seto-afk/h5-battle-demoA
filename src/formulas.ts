@@ -57,6 +57,6 @@ export function skillPowerBreakdown(spirit: RuntimeSpirit, skill: SkillData, con
   return { base, bonus, total: base + bonus, details };
 }
 
-export function healAmount(target: RuntimeSpirit, percent: number) {
-  return Math.floor(spiritData(target.id).maxHp * percent);
+export function healAmount(target: RuntimeSpirit, percent: number, maxHp = spiritData(target.spiritDefinitionId ?? target.id).maxHp) {
+  return Math.floor(maxHp * percent);
 }

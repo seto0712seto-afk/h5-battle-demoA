@@ -1,3 +1,4 @@
+import type { UnitStats } from './types';
 import type {
   MonsterActionSelection,
   MonsterAiRuntime,
@@ -9,21 +10,34 @@ import type {
   MonsterSkillDefinition
 } from './monsterTypes';
 
-export function monsterLevelMultiplier(level: number) {
+export function battleLevelMultiplier(level: number) {
   if (!Number.isFinite(level) || level < 1) throw new Error('Monster level must be at least 1.');
   return 1 + (level - 1) * 0.25;
 }
 
-export function calculateMonsterStats(definition: MonsterDefinition, level = definition.level): MonsterFinalStats {
-  const multiplier = monsterLevelMultiplier(level);
+export const monsterLevelMultiplier = battleLevelMultiplier;
+
+export function calculateLevelScaledUnitStats(baseStats: UnitStats, level: number): UnitStats {
+  const multiplier = battleLevelMultiplier(level);
   return {
-    physicalAttack: Math.round(100 * definition.coefficients.physicalAttack * multiplier),
-    physicalDefense: Math.round(100 * definition.coefficients.physicalDefense * multiplier),
-    magicAttack: Math.round(100 * definition.coefficients.magicAttack * multiplier),
-    magicDefense: Math.round(100 * definition.coefficients.magicDefense * multiplier),
-    speed: Math.round(100 * definition.coefficients.speed * multiplier),
-    maxHp: Math.round(definition.baseHp * multiplier)
+    physicalAttack: Math.round(baseStats.physicalAttack * multiplier),
+    physicalDefense: Math.round(baseStats.physicalDefense * multiplier),
+    magicAttack: Math.round(baseStats.magicAttack * multiplier),
+    magicDefense: Math.round(baseStats.magicDefense * multiplier),
+    speed: Math.round(baseStats.speed * multiplier),
+    maxHp: Math.round(baseStats.maxHp * multiplier)
   };
+}
+
+export function calculateMonsterStats(definition: MonsterDefinition, level = definition.level): MonsterFinalStats {
+  return calculateLevelScaledUnitStats({
+    physicalAttack: 100 * definition.coefficients.physicalAttack,
+    physicalDefense: 100 * definition.coefficients.physicalDefense,
+    magicAttack: 100 * definition.coefficients.magicAttack,
+    magicDefense: 100 * definition.coefficients.magicDefense,
+    speed: 100 * definition.coefficients.speed,
+    maxHp: definition.baseHp
+  }, level);
 }
 
 export function createMonsterInstance(definition: MonsterDefinition, overrides: MonsterInstanceOverrides = {}): MonsterInstance {

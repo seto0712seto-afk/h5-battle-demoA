@@ -18,6 +18,7 @@ import {
 } from './coreBattleRules';
 import { MONSTERS, MONSTER_SKILLS } from './monsterData';
 import {
+  calculateLevelScaledUnitStats,
   consumeRuntimeMonsterSkillTemporaryPower,
   createMonsterAiRuntime,
   createMonsterInstance,
@@ -30,9 +31,13 @@ import {
   selectMonsterAction,
   selectSeededTarget
 } from './monsterSystem';
-import type { ActionResult, BattleFxEvent, BattlePlayerParticipant, BattleState, BossData, BossId, EnemyBattlePosition, PlayerBattleSnapshot, Row, RuntimeEnemy, RuntimeShieldInstance, RuntimeSpirit, SkillButtonState, SkillData, SkillEnhanceCondition, StageEnemyConfig } from './types';
+import type { ActionResult, BattleFxEvent, BattlePlayerParticipant, BattleState, BossData, BossId, EnemyBattlePosition, PlayerBattleSnapshot, Row, RuntimeEnemy, RuntimeShieldInstance, RuntimeSpirit, SkillButtonState, SkillData, SkillEnhanceCondition, SpiritData, StageEnemyConfig } from './types';
 import type { MonsterAiRuntime, MonsterDefinition, MonsterFinalStats, MonsterSkillDefinition } from './monsterTypes';
 import type { BattleTelemetryCollector } from './battleTelemetry';
+
+interface RuntimePlayerParticipant extends Omit<BattlePlayerParticipant, 'level'> {
+  level?: number;
+}
 
 type Listener = (state: BattleState) => void;
 
@@ -68,8 +73,9 @@ export class BattleGame {
   private listeners = new Set<Listener>();
   private timer: number | null = null;
   private selectedSpiritIds: string[];
-  private playerParticipants: BattlePlayerParticipant[];
+  private playerParticipants: RuntimePlayerParticipant[];
   private spiritDefinitionIds: Record<string, string> = {};
+  private playerSpiritData: Record<string, SpiritData> = {};
   private config: BattleSystemConfig;
   private playerSnapshot?: PlayerBattleSnapshot;
   private monsterDefinition?: MonsterDefinition;
@@ -152,7 +158,14 @@ export class BattleGame {
             this.config
           );
     this.playerParticipants.forEach((participant) => {
+      const definition = this.config.creatureConfig.find(
+        (spirit) => spirit.id === participant.spiritDefinitionId
+      );
+      if (!definition) throw new Error('Unknown player spirit definition: ' + participant.spiritDefinitionId);
       this.spiritDefinitionIds[participant.instanceId] = participant.spiritDefinitionId;
+      this.playerSpiritData[participant.instanceId] = participant.level === undefined
+        ? definition
+        : { ...definition, ...calculateLevelScaledUnitStats(definition, participant.level) };
     });
     this.selectedSpiritIds = this.playerParticipants.map((participant) => participant.instanceId);
     this.state = this.createInitialState();
@@ -212,6 +225,8 @@ export class BattleGame {
   }
 
   private spiritInfo(id: string) {
+    const runtimeDefinition = this.playerSpiritData[id];
+    if (runtimeDefinition) return runtimeDefinition;
     const definitionId = this.spiritDefinitionIds[id] ?? id;
     return this.config.creatureConfig.find((spirit) => spirit.id === definitionId) ?? spiritData(definitionId);
   }
@@ -790,6 +805,7 @@ export class BattleGame {
         id: participant.instanceId,
         spiritDefinitionId: participant.spiritDefinitionId,
         hp: participant.currentHp,
+        ...(participant.level === undefined ? {} : { level: participant.level }),
         action: 0,
         shieldNextBossAction: 0,
         physicalAttackBonus: 0,
@@ -1889,7 +1905,7 @@ export class BattleGame {
 
   private shieldSpirit(actorId: string, targetId: string, percent: number, skillName: string) {
     const target = this.getSpirit(targetId);
-    const amount = healAmount(target, percent);
+    const amount = healAmount(target, percent, this.spiritInfo(targetId).maxHp);
     const before = target.shieldNextBossAction;
     target.shieldNextBossAction = Math.max(target.shieldNextBossAction, amount);
     const changed = target.shieldNextBossAction - before;
@@ -3098,7 +3114,7 @@ function normalizeSelectedSpiritIds(ids: string[], config: BattleSystemConfig) {
   return config.creatureConfig.slice(0, minimum).map((spirit) => spirit.id);
 }
 
-function participantsFromSelectedSpiritIds(ids: string[], config: BattleSystemConfig): BattlePlayerParticipant[] {
+function participantsFromSelectedSpiritIds(ids: string[], config: BattleSystemConfig): RuntimePlayerParticipant[] {
   const definitions = Object.fromEntries(config.creatureConfig.map((spirit) => [spirit.id, spirit]));
   return ids.map((id) => ({
     instanceId: id,
@@ -3107,37 +3123,72 @@ function participantsFromSelectedSpiritIds(ids: string[], config: BattleSystemCo
   }));
 }
 
-function participantsFromSnapshot(snapshot: PlayerBattleSnapshot, config: BattleSystemConfig) {
-  return normalizePlayerParticipants(
-    snapshot.selectedSpiritIds.map((instanceId) => {
+function participantsFromSnapshot(
+  snapshot: PlayerBattleSnapshot,
+  config: BattleSystemConfig
+): RuntimePlayerParticipant[] {
+  return normalizeRuntimePlayerParticipants(
+    snapshot.selectedSpiritIds.map((instanceId): RuntimePlayerParticipant => {
       const spirit = snapshot.spirits[instanceId];
       if (!spirit) throw new Error('Missing player snapshot spirit: ' + instanceId);
       return {
         instanceId,
         spiritDefinitionId: spirit.spiritDefinitionId ?? spirit.id ?? instanceId,
-        currentHp: spirit.hp
+        currentHp: spirit.hp,
+        ...(spirit.level === undefined ? {} : { level: spirit.level })
       };
     }),
-    config
+    config,
+    false
   );
 }
 
 function normalizePlayerParticipants(participants: BattlePlayerParticipant[], config: BattleSystemConfig) {
+  return normalizeRuntimePlayerParticipants(participants, config, true);
+}
+
+function normalizeRuntimePlayerParticipants(
+  participants: RuntimePlayerParticipant[],
+  config: BattleSystemConfig,
+  requireLevel: boolean
+) {
   if (participants.length < 1 || participants.length > 6) {
     throw new Error('Battle player participants must contain between 1 and 6 instances.');
   }
-  const validDefinitionIds = new Set(config.creatureConfig.map((spirit) => spirit.id));
+  const definitions = Object.fromEntries(config.creatureConfig.map((spirit) => [spirit.id, spirit]));
   const instanceIds = new Set<string>();
   return participants.map((participant) => {
     const instanceId = participant.instanceId.trim();
     const spiritDefinitionId = participant.spiritDefinitionId.trim();
     if (!instanceId) throw new Error('Battle player participant instanceId is required.');
     if (instanceIds.has(instanceId)) throw new Error('Duplicate battle player participant instanceId: ' + instanceId);
-    if (!validDefinitionIds.has(spiritDefinitionId)) throw new Error('Unknown player spirit definition: ' + spiritDefinitionId);
+    const definition = definitions[spiritDefinitionId];
+    if (!definition) throw new Error('Unknown player spirit definition: ' + spiritDefinitionId);
     if (!Number.isFinite(participant.currentHp)) throw new Error('Battle player participant currentHp must be finite.');
+    const level = participant.level;
+    if (requireLevel || level !== undefined) validatePlayerLevel(level);
+    if (level !== undefined) {
+      const maxHp = calculateLevelScaledUnitStats(definition, level).maxHp;
+      if (participant.currentHp > maxHp) {
+        throw new Error(
+          `Battle player participant currentHp exceeds level maxHp: ${instanceId} (${participant.currentHp} > ${maxHp}).`
+        );
+      }
+    }
     instanceIds.add(instanceId);
-    return { instanceId, spiritDefinitionId, currentHp: participant.currentHp };
+    return {
+      instanceId,
+      spiritDefinitionId,
+      currentHp: participant.currentHp,
+      ...(level === undefined ? {} : { level })
+    };
   });
+}
+
+function validatePlayerLevel(level: number | undefined): asserts level is number {
+  if (!Number.isInteger(level) || (level as number) < 1 || (level as number) > 100) {
+    throw new Error('Battle player participant level must be an integer between 1 and 100.');
+  }
 }
 
 function monsterConfigStatOverrides(config: BattleSystemConfig, defaults: MonsterFinalStats): Partial<MonsterFinalStats> {
