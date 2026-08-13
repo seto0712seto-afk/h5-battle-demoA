@@ -4,6 +4,8 @@ import { stageEnemyId } from './stageRuntime';
 import type { BattleState, PlayerBattleSnapshot } from './types';
 import { BattleUI, type BattleUIOptions } from './ui';
 
+export type { BattlePlayerParticipant } from './types';
+
 export interface BattleIntegrationResult {
   result: 'victory' | 'defeat';
   state: BattleState;
@@ -25,11 +27,28 @@ export interface MountedBattle {
   createPlayerSnapshot: () => PlayerBattleSnapshot;
 }
 
+/** @internal Exported for deterministic lifecycle verification. */
+export function createBattleLifecycleStop(
+  game: Pick<BattleGame, 'stop'>,
+  ui: Pick<BattleUI, 'dispose'>,
+  unsubscribe: () => void
+) {
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    game.stop();
+    unsubscribe();
+    ui.dispose();
+  };
+}
+
 export function mountBattle(options: MountBattleOptions): MountedBattle {
   const firstEnemyId = stageEnemyId(options.enemies?.[0]) ?? options.selectedBossId;
   const baseConfig = options.config ?? battleSystemConfig();
   const config = resolveSelectedBossConfig(baseConfig, firstEnemyId);
   const game = new BattleGame({
+    playerParticipants: options.playerParticipants,
     selectedSpiritIds: options.selectedSpiritIds,
     selectedBossId: options.selectedBossId,
     playerSnapshot: options.playerSnapshot,
@@ -60,13 +79,11 @@ export function mountBattle(options: MountBattleOptions): MountedBattle {
   }
   const ui = new BattleUI(options.root, game, config, uiOptions);
   ui.mount();
+  const stop = createBattleLifecycleStop(game, ui, unsubscribe);
 
   return {
     game,
-    stop() {
-      unsubscribe();
-      game.stop();
-    },
+    stop,
     createPlayerSnapshot: () => game.createPlayerSnapshot()
   };
 }

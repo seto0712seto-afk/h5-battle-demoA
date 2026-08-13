@@ -13,17 +13,21 @@ async function withModules(context) {
     server: { middlewareMode: true }
   });
   context.after(() => vite.close());
-  const [stages, monsterData, battleModule, battleSystems, prebattle] = await Promise.all([
+  const [stages, monsterData, battleModule, battleSystems, prebattle, uiModule, integrationModule] = await Promise.all([
     vite.ssrLoadModule('/src/stages.ts'),
     vite.ssrLoadModule('/src/monsterData.ts'),
     vite.ssrLoadModule('/src/battle.ts'),
     vite.ssrLoadModule('/src/battleSystems.ts'),
-    vite.ssrLoadModule('/src/prebattle.ts')
+    vite.ssrLoadModule('/src/prebattle.ts'),
+    vite.ssrLoadModule('/src/ui.ts'),
+    vite.ssrLoadModule('/src/battleIntegration.ts')
   ]);
   return {
     stages,
     monsterData,
     BattleGame: battleModule.BattleGame,
+    BattleUI: uiModule.BattleUI,
+    createBattleLifecycleStop: integrationModule.createBattleLifecycleStop,
     battleSystemConfig: battleSystems.battleSystemConfig,
     buildRandomQuickTeam: prebattle.buildRandomQuickTeam
   };
@@ -188,3 +192,240 @@ test('连战快照继承当前阵容、站位、生命、死亡与妖力，不�
   assert.deepEqual(next.state.slots, snapshot.slots);
   assert.deepEqual(next.getBenchSpiritIds(), [team[0], team[4], team[5]]);
 });
+
+test('Aries player instances keep duplicate definitions, initial HP, and result identity', async (context) => {
+  const { BattleGame, battleSystemConfig } = await withModules(context);
+  const config = battleSystemConfig();
+  const definitionId = config.creatureConfig[0].id;
+  const participants = [
+    { instanceId: 'owned-001', spiritDefinitionId: definitionId, currentHp: 37 },
+    { instanceId: 'owned-009', spiritDefinitionId: definitionId, currentHp: 52 }
+  ];
+  const game = new BattleGame({
+    config,
+    playerParticipants: participants,
+    enemies: [{ enemyId: 'FORGE_GRUNT_WARRIOR', position: 'front' }]
+  });
+
+  assert.deepEqual(game.state.selectedSpiritIds, ['owned-001', 'owned-009']);
+  assert.notStrictEqual(game.getSpirit('owned-001'), game.getSpirit('owned-009'));
+  assert.equal(game.getSpirit('owned-001').spiritDefinitionId, definitionId);
+  assert.equal(game.getSpirit('owned-009').spiritDefinitionId, definitionId);
+  assert.equal(game.getSpirit('owned-001').hp, 37);
+  assert.equal(game.getSpirit('owned-009').hp, 52);
+
+  game.getSpirit('owned-001').hp = 21;
+  game.getSpirit('owned-009').hp = 46;
+  const snapshot = game.createPlayerSnapshot();
+  assert.deepEqual(snapshot.selectedSpiritIds, ['owned-001', 'owned-009']);
+  assert.equal(snapshot.spirits['owned-001'].spiritDefinitionId, definitionId);
+  assert.equal(snapshot.spirits['owned-009'].spiritDefinitionId, definitionId);
+  assert.equal(snapshot.spirits['owned-001'].hp, 21);
+  assert.equal(snapshot.spirits['owned-009'].hp, 46);
+
+  const next = new BattleGame({
+    config,
+    playerSnapshot: snapshot,
+    enemies: [{ enemyId: 'FORGE_GRUNT_SHOOTER', position: 'back_1' }]
+  });
+  assert.equal(next.getSpirit('owned-001').spiritDefinitionId, definitionId);
+  assert.equal(next.getSpirit('owned-009').spiritDefinitionId, definitionId);
+  assert.equal(next.getSpirit('owned-001').hp, 21);
+  assert.equal(next.getSpirit('owned-009').hp, 46);
+});
+
+test('Aries six-instance input uses three starters and three independent reserves', async (context) => {
+  const { BattleGame, battleSystemConfig } = await withModules(context);
+  const config = battleSystemConfig();
+  const definitions = config.creatureConfig.slice(0, 3).map((spirit) => spirit.id);
+  const participants = Array.from({ length: 6 }, (_, index) => ({
+    instanceId: `owned-${index + 1}`,
+    spiritDefinitionId: definitions[index % definitions.length],
+    currentHp: 30 + index
+  }));
+  const game = new BattleGame({
+    config,
+    playerParticipants: participants,
+    enemies: [{ enemyId: 'FORGE_GRUNT_WARRIOR', position: 'front' }]
+  });
+
+  assert.deepEqual(game.state.slots.map((slot) => slot.spiritId), ['owned-1', 'owned-2', 'owned-3']);
+  assert.deepEqual(game.getBenchSpiritIds(), ['owned-4', 'owned-5', 'owned-6']);
+  assert.equal(Object.keys(game.state.spirits).length, 6);
+});
+
+test('standalone definition-id selection remains a compatible full-HP input', async (context) => {
+  const { BattleGame, battleSystemConfig } = await withModules(context);
+  const config = battleSystemConfig();
+  const selectedSpiritIds = config.creatureConfig.slice(0, 2).map((spirit) => spirit.id);
+  const game = new BattleGame({
+    config,
+    selectedSpiritIds,
+    enemies: [{ enemyId: 'FORGE_GRUNT_WARRIOR', position: 'front' }]
+  });
+
+  assert.deepEqual(game.state.selectedSpiritIds, selectedSpiritIds);
+  selectedSpiritIds.forEach((id) => {
+    const definition = config.creatureConfig.find((spirit) => spirit.id === id);
+    assert.equal(game.getSpirit(id).spiritDefinitionId, id);
+    assert.equal(game.getSpirit(id).hp, definition.maxHp);
+  });
+});
+
+test('BattleGame stop clears the mounted main-loop interval and remains idempotent', async (context) => {
+  const { BattleGame, battleSystemConfig } = await withModules(context);
+  const timers = installLifecycleTestGlobals();
+  try {
+    const config = battleSystemConfig();
+    const game = new BattleGame({
+      config,
+      selectedSpiritIds: [config.creatureConfig[0].id],
+      enemies: [{ enemyId: 'FORGE_GRUNT_WARRIOR', position: 'front' }]
+    });
+    let stateUpdates = 0;
+    const unsubscribe = game.subscribe(() => {
+      stateUpdates += 1;
+    });
+
+    game.start();
+    assert.equal(timers.intervals.size, 1);
+    const mainLoop = [...timers.intervals.values()][0];
+    mainLoop();
+    assert.ok(stateUpdates > 1);
+
+    game.stop();
+    game.stop();
+    assert.equal(timers.intervals.size, 0);
+    const updatesAfterStop = stateUpdates;
+    timers.runActiveIntervals();
+    assert.equal(stateUpdates, updatesAfterStop);
+    unsubscribe();
+  } finally {
+    timers.restore();
+  }
+});
+
+test('mounted lifecycle stop disposes UI subscriptions, timers, transient nodes, and repeated calls', async (context) => {
+  const { BattleUI, createBattleLifecycleStop } = await withModules(context);
+  const timers = installLifecycleTestGlobals();
+  try {
+    let uiListener = null;
+    let uiUnsubscribes = 0;
+    let gameStarts = 0;
+    let gameStops = 0;
+    let resultUnsubscribes = 0;
+    const game = {
+      state: {},
+      subscribe(listener) {
+        uiListener = listener;
+        listener({});
+        return () => {
+          uiUnsubscribes += 1;
+        };
+      },
+      start() {
+        gameStarts += 1;
+      },
+      stop() {
+        gameStops += 1;
+      }
+    };
+    const root = {
+      innerHTML: 'mounted battle',
+      querySelectorAll: () => []
+    };
+    const ui = new BattleUI(root, game, {});
+    let renders = 0;
+    ui.render = () => {
+      renders += 1;
+    };
+    ui.mount();
+    assert.equal(gameStarts, 1);
+    assert.equal(renders, 1);
+
+    let timerCallbacks = 0;
+    ui.scheduleTimeout(() => {
+      timerCallbacks += 1;
+    }, 100);
+    ui.scheduleInterval(() => {
+      timerCallbacks += 1;
+    }, 100);
+    const staleTimeout = [...timers.timeouts.values()][0];
+    const staleInterval = [...timers.intervals.values()][0];
+    const transientNode = {
+      removed: false,
+      remove() {
+        this.removed = true;
+      }
+    };
+    ui.transientNodes.add(transientNode);
+
+    const stop = createBattleLifecycleStop(game, ui, () => {
+      resultUnsubscribes += 1;
+    });
+    stop();
+    stop();
+
+    assert.equal(gameStops, 1);
+    assert.equal(resultUnsubscribes, 1);
+    assert.equal(uiUnsubscribes, 1);
+    assert.equal(timers.timeouts.size, 0);
+    assert.equal(timers.intervals.size, 0);
+    assert.equal(transientNode.removed, true);
+    assert.equal(root.innerHTML, '');
+
+    uiListener({});
+    staleTimeout();
+    staleInterval();
+    assert.equal(renders, 1);
+    assert.equal(timerCallbacks, 0);
+  } finally {
+    timers.restore();
+  }
+});
+
+function installLifecycleTestGlobals() {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  let nextHandle = 1;
+  const timeouts = new Map();
+  const intervals = new Map();
+  globalThis.window = {
+    performance: { now: () => 0 },
+    setTimeout(callback) {
+      const handle = nextHandle++;
+      timeouts.set(handle, callback);
+      return handle;
+    },
+    clearTimeout(handle) {
+      timeouts.delete(handle);
+    },
+    setInterval(callback) {
+      const handle = nextHandle++;
+      intervals.set(handle, callback);
+      return handle;
+    },
+    clearInterval(handle) {
+      intervals.delete(handle);
+    }
+  };
+  globalThis.document = {
+    body: {
+      append() {},
+      classList: { remove() {} }
+    }
+  };
+  return {
+    timeouts,
+    intervals,
+    runActiveIntervals() {
+      [...intervals.values()].forEach((callback) => callback());
+    },
+    restore() {
+      if (previousWindow === undefined) delete globalThis.window;
+      else globalThis.window = previousWindow;
+      if (previousDocument === undefined) delete globalThis.document;
+      else globalThis.document = previousDocument;
+    }
+  };
+}

@@ -30,13 +30,14 @@ import {
   selectMonsterAction,
   selectSeededTarget
 } from './monsterSystem';
-import type { ActionResult, BattleFxEvent, BattleState, BossData, BossId, EnemyBattlePosition, PlayerBattleSnapshot, Row, RuntimeEnemy, RuntimeShieldInstance, RuntimeSpirit, SkillButtonState, SkillData, SkillEnhanceCondition, StageEnemyConfig } from './types';
+import type { ActionResult, BattleFxEvent, BattlePlayerParticipant, BattleState, BossData, BossId, EnemyBattlePosition, PlayerBattleSnapshot, Row, RuntimeEnemy, RuntimeShieldInstance, RuntimeSpirit, SkillButtonState, SkillData, SkillEnhanceCondition, StageEnemyConfig } from './types';
 import type { MonsterAiRuntime, MonsterDefinition, MonsterFinalStats, MonsterSkillDefinition } from './monsterTypes';
 import type { BattleTelemetryCollector } from './battleTelemetry';
 
 type Listener = (state: BattleState) => void;
 
 export interface BattleGameOptions {
+  playerParticipants?: BattlePlayerParticipant[];
   selectedSpiritIds?: string[];
   selectedBossId?: BossId;
   config?: BattleSystemConfig;
@@ -67,6 +68,8 @@ export class BattleGame {
   private listeners = new Set<Listener>();
   private timer: number | null = null;
   private selectedSpiritIds: string[];
+  private playerParticipants: BattlePlayerParticipant[];
+  private spiritDefinitionIds: Record<string, string> = {};
   private config: BattleSystemConfig;
   private playerSnapshot?: PlayerBattleSnapshot;
   private monsterDefinition?: MonsterDefinition;
@@ -137,10 +140,21 @@ export class BattleGame {
     this.battleSeed = normalizedOptions.battleSeed ?? `${this.enemySetups.map((setup) => setup.definition.id).join('|')}:default`;
     this.playerSnapshot = normalizedOptions.playerSnapshot;
     this.telemetry = normalizedOptions.telemetry;
-    this.selectedSpiritIds = normalizeSelectedSpiritIds(
-      normalizedOptions.playerSnapshot?.selectedSpiritIds ?? normalizedOptions.selectedSpiritIds ?? this.config.creatureConfig.map((spirit) => spirit.id),
-      this.config
-    );
+    this.playerParticipants = this.playerSnapshot
+      ? participantsFromSnapshot(this.playerSnapshot, this.config)
+      : normalizedOptions.playerParticipants
+        ? normalizePlayerParticipants(normalizedOptions.playerParticipants, this.config)
+        : participantsFromSelectedSpiritIds(
+            normalizeSelectedSpiritIds(
+              normalizedOptions.selectedSpiritIds ?? this.config.creatureConfig.map((spirit) => spirit.id),
+              this.config
+            ),
+            this.config
+          );
+    this.playerParticipants.forEach((participant) => {
+      this.spiritDefinitionIds[participant.instanceId] = participant.spiritDefinitionId;
+    });
+    this.selectedSpiritIds = this.playerParticipants.map((participant) => participant.instanceId);
     this.state = this.createInitialState();
     this.notifyTelemetry('onBattleStart', {
       seed: this.battleSeed,
@@ -193,8 +207,13 @@ export class BattleGame {
     return this.state.spirits[id];
   }
 
+  getSpiritDefinition(id: string) {
+    return this.spiritInfo(id);
+  }
+
   private spiritInfo(id: string) {
-    return this.config.creatureConfig.find((spirit) => spirit.id === id) ?? spiritData(id);
+    const definitionId = this.spiritDefinitionIds[id] ?? id;
+    return this.config.creatureConfig.find((spirit) => spirit.id === definitionId) ?? spiritData(definitionId);
   }
 
   private spiritName(id: string) {
@@ -291,7 +310,7 @@ export class BattleGame {
     const bossConfig = this.enemyBossData[enemyId];
     const skill = MONSTER_SKILLS[skillId];
     const target = this.state.spirits[targetId];
-    const targetData = this.config.creatureConfig.find((spirit) => spirit.id === targetId);
+    const targetData = this.spiritInfo(targetId);
     if (!runtime || !bossConfig || !skill || !target || !targetData) return null;
     const damageType = skill.execution.damageType ?? 'none';
     if (!['physical', 'magical', 'fixed'].includes(damageType)) return null;
@@ -723,7 +742,7 @@ export class BattleGame {
     });
     const roundWithSortedSlots = sortRoundActionSlots(
       round,
-      Object.fromEntries(this.config.creatureConfig.map((spirit) => [spirit.id, spirit.speed + (spirits[spirit.id]?.speedModifier ?? 0)]))
+      Object.fromEntries(Object.values(spirits).map((spirit) => [spirit.id, this.spiritInfo(spirit.id).speed + spirit.speedModifier]))
     );
     const normalActionSlots = roundWithSortedSlots.actionSlots.filter(
       (slot) => slot.type !== 'boss' || !this.enemyAi[slot.unitId]?.actLastNextRound
@@ -766,10 +785,11 @@ export class BattleGame {
     this.monsterAi = this.enemyAi[firstEnemy.id];
     this.monsterRandom = this.enemyRandom[firstEnemy.id];
     const spirits: Record<string, RuntimeSpirit> = {};
-    this.config.creatureConfig.forEach((spirit) => {
-      spirits[spirit.id] = {
-        id: spirit.id,
-        hp: spirit.maxHp,
+    this.playerParticipants.forEach((participant) => {
+      spirits[participant.instanceId] = {
+        id: participant.instanceId,
+        spiritDefinitionId: participant.spiritDefinitionId,
+        hp: participant.currentHp,
         action: 0,
         shieldNextBossAction: 0,
         physicalAttackBonus: 0,
@@ -796,11 +816,15 @@ export class BattleGame {
         statuses: {}
       };
     });
-    const selectedSpiritIds = this.playerSnapshot ? [...this.playerSnapshot.selectedSpiritIds] : [...this.selectedSpiritIds];
+    const selectedSpiritIds = [...this.selectedSpiritIds];
     const snapshotSpirits = this.playerSnapshot?.spirits;
     if (snapshotSpirits) {
       Object.entries(snapshotSpirits).forEach(([id, spirit]) => {
-        spirits[id] = cloneSpirit(spirit);
+        spirits[id] = {
+          ...cloneSpirit(spirit),
+          id,
+          spiritDefinitionId: this.spiritDefinitionIds[id] ?? spirit.spiritDefinitionId ?? id
+        };
       });
     }
     const slots = this.playerSnapshot
@@ -3074,6 +3098,48 @@ function normalizeSelectedSpiritIds(ids: string[], config: BattleSystemConfig) {
   return config.creatureConfig.slice(0, minimum).map((spirit) => spirit.id);
 }
 
+function participantsFromSelectedSpiritIds(ids: string[], config: BattleSystemConfig): BattlePlayerParticipant[] {
+  const definitions = Object.fromEntries(config.creatureConfig.map((spirit) => [spirit.id, spirit]));
+  return ids.map((id) => ({
+    instanceId: id,
+    spiritDefinitionId: id,
+    currentHp: definitions[id].maxHp
+  }));
+}
+
+function participantsFromSnapshot(snapshot: PlayerBattleSnapshot, config: BattleSystemConfig) {
+  return normalizePlayerParticipants(
+    snapshot.selectedSpiritIds.map((instanceId) => {
+      const spirit = snapshot.spirits[instanceId];
+      if (!spirit) throw new Error('Missing player snapshot spirit: ' + instanceId);
+      return {
+        instanceId,
+        spiritDefinitionId: spirit.spiritDefinitionId ?? spirit.id ?? instanceId,
+        currentHp: spirit.hp
+      };
+    }),
+    config
+  );
+}
+
+function normalizePlayerParticipants(participants: BattlePlayerParticipant[], config: BattleSystemConfig) {
+  if (participants.length < 1 || participants.length > 6) {
+    throw new Error('Battle player participants must contain between 1 and 6 instances.');
+  }
+  const validDefinitionIds = new Set(config.creatureConfig.map((spirit) => spirit.id));
+  const instanceIds = new Set<string>();
+  return participants.map((participant) => {
+    const instanceId = participant.instanceId.trim();
+    const spiritDefinitionId = participant.spiritDefinitionId.trim();
+    if (!instanceId) throw new Error('Battle player participant instanceId is required.');
+    if (instanceIds.has(instanceId)) throw new Error('Duplicate battle player participant instanceId: ' + instanceId);
+    if (!validDefinitionIds.has(spiritDefinitionId)) throw new Error('Unknown player spirit definition: ' + spiritDefinitionId);
+    if (!Number.isFinite(participant.currentHp)) throw new Error('Battle player participant currentHp must be finite.');
+    instanceIds.add(instanceId);
+    return { instanceId, spiritDefinitionId, currentHp: participant.currentHp };
+  });
+}
+
 function monsterConfigStatOverrides(config: BattleSystemConfig, defaults: MonsterFinalStats): Partial<MonsterFinalStats> {
   const overrides: Partial<MonsterFinalStats> = {};
   const statKeys: (keyof MonsterFinalStats)[] = [
@@ -3097,6 +3163,7 @@ function cloneSpirits(spirits: Record<string, RuntimeSpirit>) {
 function cloneSpirit(spirit: RuntimeSpirit): RuntimeSpirit {
   return {
     ...spirit,
+    spiritDefinitionId: spirit.spiritDefinitionId ?? spirit.id,
     skillCooldowns: { ...spirit.skillCooldowns },
     skillPowerGrowth: { ...spirit.skillPowerGrowth },
     skillUseCounts: { ...(spirit.skillUseCounts ?? {}) },

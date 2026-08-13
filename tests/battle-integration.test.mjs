@@ -7,7 +7,7 @@ const projectRoot = path.resolve(import.meta.dirname, '..');
 
 test('battle integration exposes one stable mount boundary', async () => {
   const source = await readFile(path.join(projectRoot, 'src/battleIntegration.ts'), 'utf8');
-  for (const contract of ['mountBattle', 'onBattleEnd', 'onResultAction', 'createPlayerSnapshot', 'stop']) {
+  for (const contract of ['mountBattle', 'playerParticipants', 'onBattleEnd', 'onResultAction', 'createPlayerSnapshot', 'stop']) {
     assert.match(source, new RegExp(contract));
   }
 

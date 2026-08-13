@@ -45,15 +45,40 @@ export class BattleUI {
   private selectedEnemyId: string | null = null;
   private hasRenderedBattleFrame = false;
   private forceNextRender = false;
+  private unsubscribeGame: (() => void) | null = null;
+  private timeoutHandles = new Set<number>();
+  private intervalHandles = new Set<number>();
+  private transientNodes = new Set<HTMLElement>();
+  private disposed = false;
 
   constructor(private root: HTMLElement, private game: BattleGame, private config: BattleSystemConfig, private options: BattleUIOptions = {}) {}
 
   mount() {
-    this.game.subscribe((state) => this.render(state));
+    if (this.disposed || this.unsubscribeGame) return;
+    this.unsubscribeGame = this.game.subscribe((state) => {
+      if (!this.disposed) this.render(state);
+    });
     this.game.start();
   }
 
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.unsubscribeGame?.();
+    this.unsubscribeGame = null;
+    this.intervalHandles.forEach((handle) => window.clearInterval(handle));
+    this.timeoutHandles.forEach((handle) => window.clearTimeout(handle));
+    this.intervalHandles.clear();
+    this.timeoutHandles.clear();
+    this.transientNodes.forEach((node) => node.remove());
+    this.transientNodes.clear();
+    this.clearBattleFxClasses();
+    this.root.innerHTML = '';
+    document.body.classList.remove('has-enemy-detail');
+  }
+
   private render(state: BattleState) {
+    if (this.disposed) return;
     this.syncHitFeedback(state);
     if (this.hasRenderedBattleFrame && !this.forceNextRender && state.phase === 'running') {
       this.flashingHit?.spiritIds.forEach((id) => this.addTransientClass(this.spiritCell(id), 'is-hit', 520));
@@ -140,10 +165,7 @@ export class BattleUI {
     const area = element('section', 'bench-area');
     area.append(textEl('strong', 'bench-label', '后备精灵'));
     const list = element('div', 'bench-strip');
-    const fieldIds = new Set(state.slots.map((slot) => slot.spiritId).filter(Boolean));
-    const benchIds = this.config.creatureConfig
-      .filter((spirit) => state.selectedSpiritIds.includes(spirit.id) && !fieldIds.has(spirit.id))
-      .map((spirit) => spirit.id);
+    const benchIds = this.game.getBenchSpiritIds();
     if (benchIds.length === 0) {
       list.append(textEl('span', 'muted', '当前没有后备精灵'));
     } else {
@@ -861,9 +883,7 @@ export class BattleUI {
   }
 
   private spiritData(id: string) {
-    const data = this.config.creatureConfig.find((spirit) => spirit.id === id);
-    if (!data) throw new Error('Unknown spirit: ' + id);
-    return data;
+    return this.game.getSpiritDefinition(id);
   }
 
   private activeName(state: BattleState) {
@@ -909,13 +929,14 @@ export class BattleUI {
   }
 
   private keepBattleFxClassesAlive(fx: BattleFxEvent) {
+    if (this.disposed) return;
     const duration = fx.telegraphSkillName ? 900 : 760;
     const startedAt = window.performance.now();
     const apply = () => this.applyBattleFxClasses(fx);
     apply();
-    const timer = window.setInterval(() => {
+    const timer = this.scheduleInterval(() => {
       if (window.performance.now() - startedAt > duration) {
-        window.clearInterval(timer);
+        this.cancelInterval(timer);
         this.clearBattleFxClasses();
         return;
       }
@@ -1052,8 +1073,7 @@ export class BattleUI {
     sprite.style.setProperty('--move-y', `${to.y - from.y}px`);
     const accent = getComputedStyle(source).getPropertyValue('--accent');
     if (accent) sprite.style.setProperty('--accent', accent);
-    document.body.append(sprite);
-    window.setTimeout(() => sprite.remove(), 720);
+    this.appendTransientNode(sprite, 720);
   }
 
   private floatAt(target: HTMLElement, text: string, tone: 'damage' | 'heal' | 'buff') {
@@ -1063,8 +1083,7 @@ export class BattleUI {
     node.textContent = text;
     node.style.left = `${point.x}px`;
     node.style.top = `${point.y}px`;
-    document.body.append(node);
-    window.setTimeout(() => node.remove(), 760);
+    this.appendTransientNode(node, 760);
   }
 
   private spawnAura(target: HTMLElement, text: string, className = '') {
@@ -1073,8 +1092,7 @@ export class BattleUI {
     aura.textContent = text;
     aura.style.left = `${point.x}px`;
     aura.style.top = `${point.y}px`;
-    document.body.append(aura);
-    window.setTimeout(() => aura.remove(), 860);
+    this.appendTransientNode(aura, 860);
   }
 
   private floatBossDamage(boss: HTMLElement, text: string) {
@@ -1085,14 +1103,13 @@ export class BattleUI {
     node.textContent = text;
     node.style.left = `${rect.left + Math.min(rect.width + 56, boss.getBoundingClientRect().width * 0.62)}px`;
     node.style.top = `${rect.top + rect.height / 2}px`;
-    document.body.append(node);
-    window.setTimeout(() => node.remove(), 840);
+    this.appendTransientNode(node, 840);
   }
 
   private addTransientClass(target: Element | null | undefined, className: string, duration: number) {
     if (!(target instanceof HTMLElement)) return;
     target.classList.add(className);
-    window.setTimeout(() => target.classList.remove(className), duration);
+    this.scheduleTimeout(() => target.classList.remove(className), duration);
   }
 
   private centerOf(target: HTMLElement) {
@@ -1117,12 +1134,44 @@ export class BattleUI {
     if (!feedback || feedback.serial <= this.seenHitSerial) return;
     this.seenHitSerial = feedback.serial;
     this.flashingHit = feedback;
-    window.setTimeout(() => {
+    this.scheduleTimeout(() => {
       if (this.flashingHit?.serial === feedback.serial) {
         this.flashingHit = null;
         this.render(this.game.state);
       }
     }, 520);
+  }
+
+  private scheduleTimeout(callback: () => void, delay: number) {
+    const handle = window.setTimeout(() => {
+      this.timeoutHandles.delete(handle);
+      if (!this.disposed) callback();
+    }, delay);
+    this.timeoutHandles.add(handle);
+    return handle;
+  }
+
+  private scheduleInterval(callback: () => void, delay: number) {
+    const handle = window.setInterval(() => {
+      if (!this.disposed) callback();
+    }, delay);
+    this.intervalHandles.add(handle);
+    return handle;
+  }
+
+  private cancelInterval(handle: number) {
+    window.clearInterval(handle);
+    this.intervalHandles.delete(handle);
+  }
+
+  private appendTransientNode(node: HTMLElement, duration: number) {
+    if (this.disposed) return;
+    this.transientNodes.add(node);
+    document.body.append(node);
+    this.scheduleTimeout(() => {
+      this.transientNodes.delete(node);
+      node.remove();
+    }, duration);
   }
 
   private renderResult(state: BattleState) {

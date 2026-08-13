@@ -191,8 +191,15 @@ export interface BossData extends UnitStats {
   display?: BossDisplayData;
 }
 
+export interface BattlePlayerParticipant {
+  instanceId: string;
+  spiritDefinitionId: string;
+  currentHp: number;
+}
+
 export interface RuntimeSpirit {
   id: string;
+  spiritDefinitionId: string;
   hp: number;
   action: number;
   shieldNextBossAction: number;
