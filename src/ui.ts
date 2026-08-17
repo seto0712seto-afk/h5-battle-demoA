@@ -50,6 +50,7 @@ export class BattleUI {
   private intervalHandles = new Set<number>();
   private transientNodes = new Set<HTMLElement>();
   private disposed = false;
+  private abandonConfirmationOpen = false;
 
   constructor(private root: HTMLElement, private game: BattleGame, private config: BattleSystemConfig, private options: BattleUIOptions = {}) {}
 
@@ -64,6 +65,7 @@ export class BattleUI {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.abandonConfirmationOpen = false;
     this.unsubscribeGame?.();
     this.unsubscribeGame = null;
     this.intervalHandles.forEach((handle) => window.clearInterval(handle));
@@ -79,6 +81,8 @@ export class BattleUI {
 
   private render(state: BattleState) {
     if (this.disposed) return;
+    const battleInProgress = this.isBattleInProgress(state);
+    if (!battleInProgress) this.abandonConfirmationOpen = false;
     this.syncHitFeedback(state);
     if (this.hasRenderedBattleFrame && !this.forceNextRender && state.phase === 'running') {
       this.flashingHit?.spiritIds.forEach((id) => this.addTransientClass(this.spiritCell(id), 'is-hit', 520));
@@ -110,6 +114,9 @@ export class BattleUI {
     if (state.phase === 'victory' || state.phase === 'defeat') {
       shell.append(this.renderResult(state));
     }
+    if (battleInProgress && this.abandonConfirmationOpen) {
+      shell.append(this.renderAbandonConfirmation());
+    }
 
     this.root.append(shell);
     this.hasRenderedBattleFrame = true;
@@ -123,6 +130,7 @@ export class BattleUI {
 
   private resetBattleView() {
     this.notice = '';
+    this.abandonConfirmationOpen = false;
     this.selectedEnemyId = null;
     this.flashingHit = null;
     this.seenHitSerial = 0;
@@ -145,7 +153,15 @@ export class BattleUI {
       this.game.start();
     });
 
-    header.append(title, status, reset);
+    const actions = element('div', 'top-actions');
+    if (this.isBattleInProgress(state)) {
+      actions.append(button('放弃', 'ghost-button abandon-button', () => {
+        this.openAbandonConfirmation();
+      }));
+    }
+    actions.append(reset);
+
+    header.append(title, status, actions);
     return header;
   }
 
@@ -1188,6 +1204,54 @@ export class BattleUI {
       this.game.reset();
       this.game.start();
     }));
+    overlay.append(modal);
+    return overlay;
+  }
+
+  private isBattleInProgress(state: BattleState) {
+    return state.phase !== 'victory' && state.phase !== 'defeat';
+  }
+
+  private openAbandonConfirmation() {
+    const state = this.game.state;
+    if (this.disposed || this.abandonConfirmationOpen || !this.isBattleInProgress(state)) return;
+    this.abandonConfirmationOpen = true;
+    this.renderImmediately(state);
+  }
+
+  private cancelAbandonConfirmation() {
+    if (this.disposed || !this.abandonConfirmationOpen) return;
+    this.abandonConfirmationOpen = false;
+    this.renderImmediately();
+  }
+
+  private confirmAbandonBattle() {
+    if (this.disposed || !this.abandonConfirmationOpen) return;
+    if (!this.isBattleInProgress(this.game.state)) {
+      this.abandonConfirmationOpen = false;
+      return;
+    }
+    this.abandonConfirmationOpen = false;
+    const result = this.game.abandonBattle();
+    if (!result.ok && !this.disposed) this.renderImmediately();
+  }
+
+  private renderAbandonConfirmation() {
+    const overlay = element('div', 'abandon-confirm-overlay');
+    const modal = element('section', 'abandon-confirm-modal');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'abandon-confirm-title');
+    const title = textEl('h2', '', '确认放弃战斗？');
+    title.id = 'abandon-confirm-title';
+    modal.append(title);
+    modal.append(textEl('p', 'muted', '确认后，本场战斗将立即按失败结束。'));
+    const actions = element('div', 'abandon-confirm-actions');
+    actions.append(button('取消', 'ghost-button', () => this.cancelAbandonConfirmation()));
+    actions.append(button('确认放弃', 'primary-button abandon-confirm-button', () => {
+      this.confirmAbandonBattle();
+    }));
+    modal.append(actions);
     overlay.append(modal);
     return overlay;
   }

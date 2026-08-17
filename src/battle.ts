@@ -201,6 +201,14 @@ export class BattleGame {
     }
   }
 
+  abandonBattle(): ActionResult {
+    if (!this.finishBattle('defeat', '玩家选择放弃战斗，按失败结算。')) {
+      return { ok: false, message: '当前战斗已经结束。' };
+    }
+    this.emit();
+    return { ok: true };
+  }
+
   getTelemetryErrors() {
     return [...this.telemetryErrors];
   }
@@ -2894,31 +2902,24 @@ export class BattleGame {
     const bossDead = this.getActiveEnemyIds().length === 0;
     const playerDead = this.allSpiritsDead();
     if (bossDead && playerDead) {
-      if (this.state.phase !== 'defeat') this.log('同一结算链中双方全部死亡，按规则判定 Boss 获胜。');
-      this.state.phase = 'defeat';
-      this.state.activeUnit = null;
-      this.finishTelemetryBattle('defeat');
-      return true;
+      return this.finishBattle('defeat', '同一结算链中双方全部死亡，按规则判定 Boss 获胜。');
     }
     if (bossDead) {
-      if (this.state.phase !== 'victory') {
-        this.log('敌方单位全部阵亡，战斗胜利。');
-      }
-      this.state.phase = 'victory';
-      this.state.activeUnit = null;
-      this.finishTelemetryBattle('victory');
-      return true;
+      return this.finishBattle('victory', '敌方单位全部阵亡，战斗胜利。');
     }
     if (playerDead) {
-      if (this.state.phase !== 'defeat') {
-        this.log('玩家全部精灵阵亡，战斗失败。');
-      }
-      this.state.phase = 'defeat';
-      this.state.activeUnit = null;
-      this.finishTelemetryBattle('defeat');
-      return true;
+      return this.finishBattle('defeat', '玩家全部精灵阵亡，战斗失败。');
     }
     return false;
+  }
+
+  private finishBattle(result: 'victory' | 'defeat', message: string) {
+    if (this.state.phase === 'victory' || this.state.phase === 'defeat') return false;
+    this.log(message);
+    this.state.phase = result;
+    this.state.activeUnit = null;
+    this.finishTelemetryBattle(result);
+    return true;
   }
 
   private allSpiritsDead() {

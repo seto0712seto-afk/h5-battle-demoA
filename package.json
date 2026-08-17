@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "dev:local": "vite --host 127.0.0.1 --port 5173 --strictPort",
-    "test": "node --test tests/stage-config.test.mjs tests/core-battle-rules.test.mjs tests/monster-system.test.mjs tests/experience-metrics.test.mjs tests/battle-policy.test.mjs tests/battle-integration.test.mjs tests/forge-summary.test.mjs tests/forge-v2.test.mjs tests/generic-boss-report.test.mjs tests/boss-report-v2.test.mjs",
+    "test": "node --test tests/abandon-battle.test.mjs tests/stage-config.test.mjs tests/core-battle-rules.test.mjs tests/monster-system.test.mjs tests/experience-metrics.test.mjs tests/battle-policy.test.mjs tests/battle-integration.test.mjs tests/forge-summary.test.mjs tests/forge-v2.test.mjs tests/generic-boss-report.test.mjs tests/boss-report-v2.test.mjs",
     "simulate:random": "node scripts/simulate-random-dungeon.mjs",
     "simulate:experience": "node scripts/simulate-random-dungeon.mjs --experience=true --runs=1000 --seed=2026072701 --output=../validation-artifacts/random-dungeon-1000-summary.json",
     "simulate:boss:v2": "node scripts/simulate-single-boss-v2.mjs",

@@ -17,7 +17,8 @@ body {
   background:linear-gradient(180deg,#ffffffdb,#f1f4f7f5),repeating-linear-gradient(90deg,rgba(35,49,62,.04) 0 1px,transparent 1px 72px)
 }
 body.has-enemy-detail,
-body:has(.enemy-detail-overlay) {
+body:has(.enemy-detail-overlay),
+body:has(.abandon-confirm-overlay) {
   overflow:hidden
 }
 button {
@@ -58,6 +59,15 @@ button {
   flex-wrap:wrap;
   justify-content:flex-end;
   gap:8px
+}
+.top-actions {
+  display:flex;
+  align-items:center;
+  gap:8px
+}
+.abandon-button {
+  border-color:#d9482f;
+  color:#a93624
 }
 .prebattle-shell {
   width:min(1280px,100%);
@@ -2134,6 +2144,39 @@ button {
 }
 .result-modal h2 {
   margin-bottom:18px
+}
+.abandon-confirm-overlay {
+  position:fixed;
+  inset:0;
+  z-index:20;
+  display:grid;
+  place-items:center;
+  padding:18px;
+  background:#1d232a75
+}
+.abandon-confirm-modal {
+  width:min(420px,100%);
+  padding:24px;
+  border-radius:8px;
+  background:#fff;
+  box-shadow:0 22px 60px #1d232a3d
+}
+.abandon-confirm-modal h2,
+.abandon-confirm-modal p {
+  margin:0
+}
+.abandon-confirm-modal p {
+  margin-top:8px
+}
+.abandon-confirm-actions {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin-top:20px
+}
+.abandon-confirm-button {
+  border-color:#b93d2c;
+  background:#b93d2c
 }
 @keyframes chip-hit-glow {
   0%,to {
