@@ -204,17 +204,17 @@ export const SKILLS: Record<string, SkillData> = {
   'M02-S1': {
     id: 'M02-S1', name: '风切', primaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 25, cost: 0, gain: 0,
     addDamageAmpStacks: 1,
-    description: '造成物理伤害，自身获得 1 层爆发。'
+    description: '造成物理伤害，自身获得 1 层【爆发】。'
   },
   'M02-S2': {
     id: 'M02-S2', name: '蓄势迎击', primaryBehavior: 'attack', secondaryBehavior: 'protect', kind: 'attack', damageType: 'physical', target: 'boss', power: 55, cost: 1, gain: 0,
     addChargeTurns: 1,
-    description: '造成物理伤害，自身获得 1 回合蓄势。'
+    description: '造成物理伤害，自身获得 1 回合【蓄势】。'
   },
   'M02-S3': {
     id: 'M02-S3', name: '风暴突袭', primaryBehavior: 'attack', kind: 'attack', damageType: 'physical', target: 'boss', power: 100, cost: 3, gain: 0,
     critIfDamageAmp: true,
-    description: '造成物理伤害；自身存在爆发时，本次攻击必定暴击。'
+    description: '造成物理伤害；持有【爆发】时必定暴击。'
   },
   'M03-S1': {
     id: 'M03-S1', name: '烈芽打击', primaryBehavior: 'attack', secondaryBehavior: 'recover', kind: 'attack', damageType: 'magic', target: 'boss', power: 25, cost: 0, gain: 0,
@@ -224,7 +224,7 @@ export const SKILLS: Record<string, SkillData> = {
   'M03-S2': {
     id: 'M03-S2', name: '生机播种', primaryBehavior: 'recover', kind: 'support', damageType: 'none', target: 'ally-field', cost: 2, gain: 0,
     addRegenTurns: 4,
-    description: '使一个场上存活友方获得 4 回合回复；目标每次行动开始时恢复 10% 最大生命。'
+    description: '使一个场上存活友方获得 4 回合【回复】。'
   },
   'M03-S3': {
     id: 'M03-S3', name: '繁盛爆弹', primaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 80, cost: 2, gain: 0,
@@ -280,7 +280,7 @@ export const SKILLS: Record<string, SkillData> = {
   'M06-S3': {
     id: 'M06-S3', name: '能量转移', primaryBehavior: 'energy', kind: 'support', damageType: 'none', target: 'ally-field', excludeSelfTarget: true, cost: 1, gain: 0,
     addEnergySaving: true,
-    description: '选择自身以外的一个场上存活友方，使其获得节能；目标下一次使用技能时，实际妖力消耗降低 50%（向下取整，最低 0），随后移除节能。'
+    description: '使自身以外一个场上存活友方获得【节能】。'
   },
   'M07-S1': {
     id: 'M07-S1', name: '月露微光', primaryBehavior: 'recover', secondaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 10, cost: 0, gain: 0,
@@ -323,7 +323,7 @@ export const SKILLS: Record<string, SkillData> = {
   'M09-S3': {
     id: 'M09-S3', name: '感电标记', primaryBehavior: 'attack', kind: 'debuff', damageType: 'none', target: 'boss', cost: 2, gain: 0,
     addBossVulnerabilityTurns: 3,
-    description: '使敌方单体获得 3 回合易伤，受到伤害提高 50%。'
+    description: '使敌方单体获得 3 回合【易伤】。'
   },
   'M10-S1': {
     id: 'M10-S1', name: '星辉充能', primaryBehavior: 'energy', secondaryBehavior: 'attack', kind: 'attack', damageType: 'magic', target: 'boss', power: 20, cost: 0, gain: 1,
