@@ -68,7 +68,7 @@ test('等级倍率统一计算攻防速与生命，并允许实例属性覆盖',
 
 test('正式怪物数据包含三主题各六只普通/精英怪与三只Boss', () => {
   assert.equal(Object.keys(monsterData.MONSTERS).length, 21);
-  assert.equal(monsterData.MONSTERS.FORGE_BOSS_WARRIOR.baseHp, 3000);
+  assert.equal(monsterData.MONSTERS.FORGE_BOSS_WARRIOR.baseHp, 5000);
   assert.equal(monsterData.MONSTERS.RANGE_BOSS_SHOOTER.baseHp, 2200);
   assert.equal(monsterData.MONSTERS.RANGE_BOSS_SHOOTER.coefficients.physicalAttack, 3);
   assert.equal(monsterData.MONSTERS.MAGE_BOSS.baseHp, 2200);

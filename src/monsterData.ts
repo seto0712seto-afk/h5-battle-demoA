@@ -281,7 +281,7 @@ const forgeMountainCharge = addSkill({
 
 addMonster({
   id: 'FORGE_BOSS_WARRIOR', name: '熔核守卫', level: 1, category: 'boss', role: 'warrior', defaultPosition: 'front',
-  coefficients: { physicalAttack: 2.5, physicalDefense: 1, magicAttack: 2.5, magicDefense: 1, speed: 0.85 }, baseHp: 3000,
+  coefficients: { physicalAttack: 2.5, physicalDefense: 1, magicAttack: 2.5, magicDefense: 1, speed: 0.85 }, baseHp: 5000,
   skills: [
     { skillId: forgeFrontSmash, weight: 50, selectionMode: 'weighted' },
     { skillId: forgeMountainCharge, weight: 25, selectionMode: 'weighted' },
