@@ -199,7 +199,7 @@ function enemyEditableFields(monster: MonsterDefinition): EnemyMonsterEditableFi
   return editable;
 }
 
-function playerDto(spirit: SpiritData): PlayerSpiritAuthoringDto {
+export function createPlayerSpiritAuthoringDto(spirit: SpiritData): PlayerSpiritAuthoringDto {
   return {
     kind: 'playerSpirit',
     id: spirit.id,
@@ -227,14 +227,14 @@ function enemyDto(monster: MonsterDefinition): EnemyMonsterAuthoringDto {
 
 export function getBattleMonsterAuthoringDefinitions(): BattleMonsterAuthoringDto[] {
   return [
-    ...SPIRITS.map(playerDto),
+    ...SPIRITS.map(createPlayerSpiritAuthoringDto),
     ...Object.values(MONSTERS).map(enemyDto)
   ];
 }
 
 export function getPlayerSpiritAuthoringDefinition(id: string): PlayerSpiritAuthoringDto | null {
   const spirit = SPIRITS.find((definition) => definition.id === id);
-  return spirit ? playerDto(spirit) : null;
+  return spirit ? createPlayerSpiritAuthoringDto(spirit) : null;
 }
 
 export function getEnemyMonsterAuthoringDefinition(id: string): EnemyMonsterAuthoringDto | null {
