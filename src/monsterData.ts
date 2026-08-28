@@ -32,26 +32,23 @@ function addMonster(definition: MonsterDefinition) {
   monsters[definition.id] = definition;
 }
 
-type ThemeEnemyIds = {
-  gruntWarrior: string;
-  gruntShooter: string;
-  gruntMage: string;
-  eliteWarrior: string;
-  eliteShooter: string;
-  eliteMage: string;
+type ThemeEnemyAuthoringDefinition = Pick<
+  MonsterDefinition,
+  'id' | 'name' | 'level' | 'category' | 'role' | 'defaultPosition' | 'coefficients' | 'baseHp'
+>;
+
+type ThemeEnemyDefinitions = {
+  gruntWarrior: ThemeEnemyAuthoringDefinition;
+  gruntShooter: ThemeEnemyAuthoringDefinition;
+  gruntMage: ThemeEnemyAuthoringDefinition;
+  eliteWarrior: ThemeEnemyAuthoringDefinition;
+  eliteShooter: ThemeEnemyAuthoringDefinition;
+  eliteMage: ThemeEnemyAuthoringDefinition;
 };
 
 function addThemeEnemies(config: {
   prefix: string;
-  ids: ThemeEnemyIds;
-  names: {
-    gruntWarrior: string;
-    gruntShooter: string;
-    gruntMage: string;
-    eliteWarrior: string;
-    eliteShooter: string;
-    eliteMage: string;
-  };
+  enemies: ThemeEnemyDefinitions;
   skills: {
     warriorBasic: string;
     shooterBasic: string;
@@ -130,75 +127,33 @@ function addThemeEnemies(config: {
   });
 
   addMonster({
-    id: config.ids.gruntWarrior,
-    name: config.names.gruntWarrior,
-    level: 1,
-    category: 'minor',
-    role: 'warrior',
-    defaultPosition: 'front',
-    coefficients: { physicalAttack: 1, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 },
-    baseHp: 450,
+    ...config.enemies.gruntWarrior,
     skills: [{ skillId: warriorBasic, weight: 100, selectionMode: 'weighted' }]
   });
   addMonster({
-    id: config.ids.gruntShooter,
-    name: config.names.gruntShooter,
-    level: 1,
-    category: 'minor',
-    role: 'shooter',
-    defaultPosition: 'back',
-    coefficients: { physicalAttack: 1.25, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 },
-    baseHp: 300,
+    ...config.enemies.gruntShooter,
     skills: [{ skillId: shooterBasic, weight: 100, selectionMode: 'weighted' }]
   });
   addMonster({
-    id: config.ids.gruntMage,
-    name: config.names.gruntMage,
-    level: 1,
-    category: 'minor',
-    role: 'mage',
-    defaultPosition: 'back',
-    coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.25, magicDefense: 1.2, speed: 1 },
-    baseHp: 300,
+    ...config.enemies.gruntMage,
     skills: [{ skillId: mageBasic, weight: 100, selectionMode: 'weighted' }]
   });
   addMonster({
-    id: config.ids.eliteWarrior,
-    name: config.names.eliteWarrior,
-    level: 1,
-    category: 'elite',
-    role: 'warrior',
-    defaultPosition: 'front',
-    coefficients: { physicalAttack: 1.5, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 },
-    baseHp: 900,
+    ...config.enemies.eliteWarrior,
     skills: [
       { skillId: warriorBasic, weight: 67, selectionMode: 'weighted' },
       { skillId: warriorPreview, weight: 33, selectionMode: 'weighted' }
     ]
   });
   addMonster({
-    id: config.ids.eliteShooter,
-    name: config.names.eliteShooter,
-    level: 1,
-    category: 'elite',
-    role: 'shooter',
-    defaultPosition: 'back',
-    coefficients: { physicalAttack: 1.875, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 },
-    baseHp: 450,
+    ...config.enemies.eliteShooter,
     skills: [
       { skillId: shooterBasic, weight: 75, selectionMode: 'weighted' },
       { skillId: shooterArea, weight: 25, selectionMode: 'weighted' }
     ]
   });
   addMonster({
-    id: config.ids.eliteMage,
-    name: config.names.eliteMage,
-    level: 1,
-    category: 'elite',
-    role: 'mage',
-    defaultPosition: 'back',
-    coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.875, magicDefense: 1.2, speed: 1 },
-    baseHp: 450,
+    ...config.enemies.eliteMage,
     skills: [
       { skillId: mageBasic, weight: 75, selectionMode: 'weighted' },
       { skillId: mageGrowth, weight: 25, selectionMode: 'forced_opening' }
@@ -208,13 +163,31 @@ function addThemeEnemies(config: {
 
 addThemeEnemies({
   prefix: 'FORGE',
-  ids: {
-    gruntWarrior: 'FORGE_GRUNT_WARRIOR', gruntShooter: 'FORGE_GRUNT_SHOOTER', gruntMage: 'FORGE_GRUNT_MAGE',
-    eliteWarrior: 'FORGE_ELITE_WARRIOR', eliteShooter: 'FORGE_ELITE_SHOOTER', eliteMage: 'FORGE_ELITE_MAGE'
-  },
-  names: {
-    gruntWarrior: '熔壳卫兵', gruntShooter: '灰羽弩手', gruntMage: '熔纹术士',
-    eliteWarrior: '赤铠督战者', eliteShooter: '焦羽箭卫', eliteMage: '炽印咏火者'
+  enemies: {
+    gruntWarrior: {
+      id: 'FORGE_GRUNT_WARRIOR', name: '熔壳卫兵', level: 1, category: 'minor', role: 'warrior', defaultPosition: 'front',
+      coefficients: { physicalAttack: 1, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 }, baseHp: 450
+    },
+    gruntShooter: {
+      id: 'FORGE_GRUNT_SHOOTER', name: '灰羽弩手', level: 1, category: 'minor', role: 'shooter', defaultPosition: 'back',
+      coefficients: { physicalAttack: 1.25, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 }, baseHp: 300
+    },
+    gruntMage: {
+      id: 'FORGE_GRUNT_MAGE', name: '熔纹术士', level: 1, category: 'minor', role: 'mage', defaultPosition: 'back',
+      coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.25, magicDefense: 1.2, speed: 1 }, baseHp: 300
+    },
+    eliteWarrior: {
+      id: 'FORGE_ELITE_WARRIOR', name: '赤铠督战者', level: 1, category: 'elite', role: 'warrior', defaultPosition: 'front',
+      coefficients: { physicalAttack: 1.5, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 }, baseHp: 900
+    },
+    eliteShooter: {
+      id: 'FORGE_ELITE_SHOOTER', name: '焦羽箭卫', level: 1, category: 'elite', role: 'shooter', defaultPosition: 'back',
+      coefficients: { physicalAttack: 1.875, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 }, baseHp: 450
+    },
+    eliteMage: {
+      id: 'FORGE_ELITE_MAGE', name: '炽印咏火者', level: 1, category: 'elite', role: 'mage', defaultPosition: 'back',
+      coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.875, magicDefense: 1.2, speed: 1 }, baseHp: 450
+    }
   },
   skills: {
     warriorBasic: '熔岩斩', shooterBasic: '灰烬箭', mageBasic: '熔火弹',
@@ -224,13 +197,31 @@ addThemeEnemies({
 
 addThemeEnemies({
   prefix: 'RANGE',
-  ids: {
-    gruntWarrior: 'RANGE_GRUNT_WARRIOR', gruntShooter: 'RANGE_GRUNT_SHOOTER', gruntMage: 'RANGE_GRUNT_MAGE',
-    eliteWarrior: 'RANGE_ELITE_WARRIOR', eliteShooter: 'RANGE_ELITE_SHOOTER', eliteMage: 'RANGE_ELITE_MAGE'
-  },
-  names: {
-    gruntWarrior: '猎场盾卫', gruntShooter: '风羽弩手', gruntMage: '风痕术士',
-    eliteWarrior: '猎场监军', eliteShooter: '裂风箭卫', eliteMage: '风眼祭司'
+  enemies: {
+    gruntWarrior: {
+      id: 'RANGE_GRUNT_WARRIOR', name: '猎场盾卫', level: 1, category: 'minor', role: 'warrior', defaultPosition: 'front',
+      coefficients: { physicalAttack: 1, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 }, baseHp: 450
+    },
+    gruntShooter: {
+      id: 'RANGE_GRUNT_SHOOTER', name: '风羽弩手', level: 1, category: 'minor', role: 'shooter', defaultPosition: 'back',
+      coefficients: { physicalAttack: 1.25, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 }, baseHp: 300
+    },
+    gruntMage: {
+      id: 'RANGE_GRUNT_MAGE', name: '风痕术士', level: 1, category: 'minor', role: 'mage', defaultPosition: 'back',
+      coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.25, magicDefense: 1.2, speed: 1 }, baseHp: 300
+    },
+    eliteWarrior: {
+      id: 'RANGE_ELITE_WARRIOR', name: '猎场监军', level: 1, category: 'elite', role: 'warrior', defaultPosition: 'front',
+      coefficients: { physicalAttack: 1.5, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 }, baseHp: 900
+    },
+    eliteShooter: {
+      id: 'RANGE_ELITE_SHOOTER', name: '裂风箭卫', level: 1, category: 'elite', role: 'shooter', defaultPosition: 'back',
+      coefficients: { physicalAttack: 1.875, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 }, baseHp: 450
+    },
+    eliteMage: {
+      id: 'RANGE_ELITE_MAGE', name: '风眼祭司', level: 1, category: 'elite', role: 'mage', defaultPosition: 'back',
+      coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.875, magicDefense: 1.2, speed: 1 }, baseHp: 450
+    }
   },
   skills: {
     warriorBasic: '猎场重击', shooterBasic: '风羽箭', mageBasic: '风刃术',
@@ -240,13 +231,31 @@ addThemeEnemies({
 
 addThemeEnemies({
   prefix: 'MAGE',
-  ids: {
-    gruntWarrior: 'MAGE_GRUNT_WARRIOR', gruntShooter: 'MAGE_GRUNT_SHOOTER', gruntMage: 'MAGE_GRUNT_MAGE',
-    eliteWarrior: 'MAGE_ELITE_WARRIOR', eliteShooter: 'MAGE_ELITE_SHOOTER', eliteMage: 'MAGE_ELITE_MAGE'
-  },
-  names: {
-    gruntWarrior: '法塔魔像', gruntShooter: '秘法射手', gruntMage: '炽印术士',
-    eliteWarrior: '符文守卫', eliteShooter: '晶矢使徒', eliteMage: '炽印咏法者'
+  enemies: {
+    gruntWarrior: {
+      id: 'MAGE_GRUNT_WARRIOR', name: '法塔魔像', level: 1, category: 'minor', role: 'warrior', defaultPosition: 'front',
+      coefficients: { physicalAttack: 1, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 }, baseHp: 450
+    },
+    gruntShooter: {
+      id: 'MAGE_GRUNT_SHOOTER', name: '秘法射手', level: 1, category: 'minor', role: 'shooter', defaultPosition: 'back',
+      coefficients: { physicalAttack: 1.25, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 }, baseHp: 300
+    },
+    gruntMage: {
+      id: 'MAGE_GRUNT_MAGE', name: '炽印术士', level: 1, category: 'minor', role: 'mage', defaultPosition: 'back',
+      coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.25, magicDefense: 1.2, speed: 1 }, baseHp: 300
+    },
+    eliteWarrior: {
+      id: 'MAGE_ELITE_WARRIOR', name: '符文守卫', level: 1, category: 'elite', role: 'warrior', defaultPosition: 'front',
+      coefficients: { physicalAttack: 1.5, physicalDefense: 1.2, magicAttack: 0, magicDefense: 0.8, speed: 1 }, baseHp: 900
+    },
+    eliteShooter: {
+      id: 'MAGE_ELITE_SHOOTER', name: '晶矢使徒', level: 1, category: 'elite', role: 'shooter', defaultPosition: 'back',
+      coefficients: { physicalAttack: 1.875, physicalDefense: 1, magicAttack: 0, magicDefense: 1, speed: 1 }, baseHp: 450
+    },
+    eliteMage: {
+      id: 'MAGE_ELITE_MAGE', name: '炽印咏法者', level: 1, category: 'elite', role: 'mage', defaultPosition: 'back',
+      coefficients: { physicalAttack: 0, physicalDefense: 0.8, magicAttack: 1.875, magicDefense: 1.2, speed: 1 }, baseHp: 450
+    }
   },
   skills: {
     warriorBasic: '符文重击', shooterBasic: '晶矢', mageBasic: '炽焰弹',

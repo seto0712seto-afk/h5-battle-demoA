@@ -1,0 +1,680 @@
+{
+  "capturedFromCommit": "feecbed",
+  "enemyAuthoringDtos": [
+    {
+      "kind": "enemyMonster",
+      "id": "FORGE_GRUNT_WARRIOR",
+      "editable": {
+        "name": "熔壳卫兵",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "front",
+        "coefficients": {
+          "physicalAttack": 1,
+          "physicalDefense": 1.2,
+          "magicAttack": 0,
+          "magicDefense": 0.8,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "warrior"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "FORGE_WARRIOR_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "FORGE_GRUNT_SHOOTER",
+      "editable": {
+        "name": "灰羽弩手",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 1.25,
+          "physicalDefense": 1,
+          "magicAttack": 0,
+          "magicDefense": 1,
+          "speed": 1
+        },
+        "baseHp": 300,
+        "role": "shooter"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "FORGE_SHOOTER_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "FORGE_GRUNT_MAGE",
+      "editable": {
+        "name": "熔纹术士",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 0,
+          "physicalDefense": 0.8,
+          "magicAttack": 1.25,
+          "magicDefense": 1.2,
+          "speed": 1
+        },
+        "baseHp": 300,
+        "role": "mage"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "FORGE_MAGE_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "FORGE_ELITE_WARRIOR",
+      "editable": {
+        "name": "赤铠督战者",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "front",
+        "coefficients": {
+          "physicalAttack": 1.5,
+          "physicalDefense": 1.2,
+          "magicAttack": 0,
+          "magicDefense": 0.8,
+          "speed": 1
+        },
+        "baseHp": 900,
+        "role": "warrior"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "FORGE_WARRIOR_BASIC",
+            "weight": 67,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "FORGE_ELITE_WARRIOR_PREVIEW",
+            "weight": 33,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "FORGE_ELITE_SHOOTER",
+      "editable": {
+        "name": "焦羽箭卫",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 1.875,
+          "physicalDefense": 1,
+          "magicAttack": 0,
+          "magicDefense": 1,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "shooter"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "FORGE_SHOOTER_BASIC",
+            "weight": 75,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "FORGE_ELITE_SHOOTER_AREA",
+            "weight": 25,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "FORGE_ELITE_MAGE",
+      "editable": {
+        "name": "炽印咏火者",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 0,
+          "physicalDefense": 0.8,
+          "magicAttack": 1.875,
+          "magicDefense": 1.2,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "mage"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "FORGE_MAGE_BASIC",
+            "weight": 75,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "FORGE_ELITE_MAGE_GROWTH",
+            "weight": 25,
+            "selectionMode": "forced_opening"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "RANGE_GRUNT_WARRIOR",
+      "editable": {
+        "name": "猎场盾卫",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "front",
+        "coefficients": {
+          "physicalAttack": 1,
+          "physicalDefense": 1.2,
+          "magicAttack": 0,
+          "magicDefense": 0.8,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "warrior"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "RANGE_WARRIOR_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "RANGE_GRUNT_SHOOTER",
+      "editable": {
+        "name": "风羽弩手",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 1.25,
+          "physicalDefense": 1,
+          "magicAttack": 0,
+          "magicDefense": 1,
+          "speed": 1
+        },
+        "baseHp": 300,
+        "role": "shooter"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "RANGE_SHOOTER_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "RANGE_GRUNT_MAGE",
+      "editable": {
+        "name": "风痕术士",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 0,
+          "physicalDefense": 0.8,
+          "magicAttack": 1.25,
+          "magicDefense": 1.2,
+          "speed": 1
+        },
+        "baseHp": 300,
+        "role": "mage"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "RANGE_MAGE_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "RANGE_ELITE_WARRIOR",
+      "editable": {
+        "name": "猎场监军",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "front",
+        "coefficients": {
+          "physicalAttack": 1.5,
+          "physicalDefense": 1.2,
+          "magicAttack": 0,
+          "magicDefense": 0.8,
+          "speed": 1
+        },
+        "baseHp": 900,
+        "role": "warrior"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "RANGE_WARRIOR_BASIC",
+            "weight": 67,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "RANGE_ELITE_WARRIOR_PREVIEW",
+            "weight": 33,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "RANGE_ELITE_SHOOTER",
+      "editable": {
+        "name": "裂风箭卫",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 1.875,
+          "physicalDefense": 1,
+          "magicAttack": 0,
+          "magicDefense": 1,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "shooter"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "RANGE_SHOOTER_BASIC",
+            "weight": 75,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "RANGE_ELITE_SHOOTER_AREA",
+            "weight": 25,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "RANGE_ELITE_MAGE",
+      "editable": {
+        "name": "风眼祭司",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 0,
+          "physicalDefense": 0.8,
+          "magicAttack": 1.875,
+          "magicDefense": 1.2,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "mage"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "RANGE_MAGE_BASIC",
+            "weight": 75,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "RANGE_ELITE_MAGE_GROWTH",
+            "weight": 25,
+            "selectionMode": "forced_opening"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "MAGE_GRUNT_WARRIOR",
+      "editable": {
+        "name": "法塔魔像",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "front",
+        "coefficients": {
+          "physicalAttack": 1,
+          "physicalDefense": 1.2,
+          "magicAttack": 0,
+          "magicDefense": 0.8,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "warrior"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "MAGE_WARRIOR_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "MAGE_GRUNT_SHOOTER",
+      "editable": {
+        "name": "秘法射手",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 1.25,
+          "physicalDefense": 1,
+          "magicAttack": 0,
+          "magicDefense": 1,
+          "speed": 1
+        },
+        "baseHp": 300,
+        "role": "shooter"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "MAGE_SHOOTER_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "MAGE_GRUNT_MAGE",
+      "editable": {
+        "name": "炽印术士",
+        "level": 1,
+        "category": "minor",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 0,
+          "physicalDefense": 0.8,
+          "magicAttack": 1.25,
+          "magicDefense": 1.2,
+          "speed": 1
+        },
+        "baseHp": 300,
+        "role": "mage"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "MAGE_MAGE_BASIC",
+            "weight": 100,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "MAGE_ELITE_WARRIOR",
+      "editable": {
+        "name": "符文守卫",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "front",
+        "coefficients": {
+          "physicalAttack": 1.5,
+          "physicalDefense": 1.2,
+          "magicAttack": 0,
+          "magicDefense": 0.8,
+          "speed": 1
+        },
+        "baseHp": 900,
+        "role": "warrior"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "MAGE_WARRIOR_BASIC",
+            "weight": 67,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "MAGE_ELITE_WARRIOR_PREVIEW",
+            "weight": 33,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "MAGE_ELITE_SHOOTER",
+      "editable": {
+        "name": "晶矢使徒",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 1.875,
+          "physicalDefense": 1,
+          "magicAttack": 0,
+          "magicDefense": 1,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "shooter"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "MAGE_SHOOTER_BASIC",
+            "weight": 75,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "MAGE_ELITE_SHOOTER_AREA",
+            "weight": 25,
+            "selectionMode": "weighted"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "MAGE_ELITE_MAGE",
+      "editable": {
+        "name": "炽印咏法者",
+        "level": 1,
+        "category": "elite",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 0,
+          "physicalDefense": 0.8,
+          "magicAttack": 1.875,
+          "magicDefense": 1.2,
+          "speed": 1
+        },
+        "baseHp": 450,
+        "role": "mage"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "MAGE_MAGE_BASIC",
+            "weight": 75,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "MAGE_ELITE_MAGE_GROWTH",
+            "weight": 25,
+            "selectionMode": "forced_opening"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "FORGE_BOSS_WARRIOR",
+      "editable": {
+        "name": "熔核守卫",
+        "level": 1,
+        "category": "boss",
+        "defaultPosition": "front",
+        "coefficients": {
+          "physicalAttack": 2.5,
+          "physicalDefense": 1,
+          "magicAttack": 2.5,
+          "magicDefense": 1,
+          "speed": 0.85
+        },
+        "baseHp": 3000,
+        "role": "warrior"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "FORGE_BOSS_HEAVY_SLASH",
+            "weight": 50,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "FORGE_BOSS_MOUNTAIN_CHARGE",
+            "weight": 25,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "FORGE_BOSS_MOUNTAIN_CLEAVE",
+            "weight": 0,
+            "selectionMode": "forced_followup"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "RANGE_BOSS_SHOOTER",
+      "editable": {
+        "name": "灰羽猎王",
+        "level": 1,
+        "category": "boss",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 3,
+          "physicalDefense": 1,
+          "magicAttack": 0,
+          "magicDefense": 1,
+          "speed": 1
+        },
+        "baseHp": 2200,
+        "role": "shooter"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "RANGE_BOSS_VOLLEY",
+            "weight": 35,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "RANGE_BOSS_PIERCING_RAIN",
+            "weight": 35,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "RANGE_BOSS_ARROWSTORM_CHARGE",
+            "weight": 30,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "RANGE_BOSS_SKYFALL",
+            "weight": 0,
+            "selectionMode": "forced_followup"
+          }
+        ]
+      }
+    },
+    {
+      "kind": "enemyMonster",
+      "id": "MAGE_BOSS",
+      "editable": {
+        "name": "炽印法主",
+        "level": 1,
+        "category": "boss",
+        "defaultPosition": "back",
+        "coefficients": {
+          "physicalAttack": 0,
+          "physicalDefense": 1,
+          "magicAttack": 2.5,
+          "magicDefense": 1,
+          "speed": 0.9
+        },
+        "baseHp": 2200,
+        "role": "mage"
+      },
+      "readOnly": {
+        "skills": [
+          {
+            "skillId": "MAGE_BOSS_ARCANE_BOLT",
+            "weight": 100,
+            "selectionMode": "weighted"
+          },
+          {
+            "skillId": "MAGE_BOSS_MANA_EXPANSION",
+            "weight": 0,
+            "selectionMode": "forced_followup"
+          }
+        ],
+        "actionCycle": {
+          "counterLabel": "魔力积蓄",
+          "countedSkillIds": [
+            "MAGE_BOSS_ARCANE_BOLT"
+          ],
+          "threshold": 3,
+          "forcedSkillId": "MAGE_BOSS_MANA_EXPANSION"
+        },
+        "temporaryPowerResponse": {
+          "targetSkillId": "MAGE_BOSS_ARCANE_BOLT",
+          "reductionPerPlayerAttack": 10
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,1058 @@
+{
+  "capturedFromCommit": "feecbed",
+  "monsters": {
+    "FORGE_GRUNT_WARRIOR": {
+      "id": "FORGE_GRUNT_WARRIOR",
+      "name": "熔壳卫兵",
+      "level": 1,
+      "category": "minor",
+      "role": "warrior",
+      "defaultPosition": "front",
+      "coefficients": {
+        "physicalAttack": 1,
+        "physicalDefense": 1.2,
+        "magicAttack": 0,
+        "magicDefense": 0.8,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "FORGE_WARRIOR_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "FORGE_GRUNT_SHOOTER": {
+      "id": "FORGE_GRUNT_SHOOTER",
+      "name": "灰羽弩手",
+      "level": 1,
+      "category": "minor",
+      "role": "shooter",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 1.25,
+        "physicalDefense": 1,
+        "magicAttack": 0,
+        "magicDefense": 1,
+        "speed": 1
+      },
+      "baseHp": 300,
+      "skills": [
+        {
+          "skillId": "FORGE_SHOOTER_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "FORGE_GRUNT_MAGE": {
+      "id": "FORGE_GRUNT_MAGE",
+      "name": "熔纹术士",
+      "level": 1,
+      "category": "minor",
+      "role": "mage",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 0,
+        "physicalDefense": 0.8,
+        "magicAttack": 1.25,
+        "magicDefense": 1.2,
+        "speed": 1
+      },
+      "baseHp": 300,
+      "skills": [
+        {
+          "skillId": "FORGE_MAGE_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "FORGE_ELITE_WARRIOR": {
+      "id": "FORGE_ELITE_WARRIOR",
+      "name": "赤铠督战者",
+      "level": 1,
+      "category": "elite",
+      "role": "warrior",
+      "defaultPosition": "front",
+      "coefficients": {
+        "physicalAttack": 1.5,
+        "physicalDefense": 1.2,
+        "magicAttack": 0,
+        "magicDefense": 0.8,
+        "speed": 1
+      },
+      "baseHp": 900,
+      "skills": [
+        {
+          "skillId": "FORGE_WARRIOR_BASIC",
+          "weight": 67,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "FORGE_ELITE_WARRIOR_PREVIEW",
+          "weight": 33,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "FORGE_ELITE_SHOOTER": {
+      "id": "FORGE_ELITE_SHOOTER",
+      "name": "焦羽箭卫",
+      "level": 1,
+      "category": "elite",
+      "role": "shooter",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 1.875,
+        "physicalDefense": 1,
+        "magicAttack": 0,
+        "magicDefense": 1,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "FORGE_SHOOTER_BASIC",
+          "weight": 75,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "FORGE_ELITE_SHOOTER_AREA",
+          "weight": 25,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "FORGE_ELITE_MAGE": {
+      "id": "FORGE_ELITE_MAGE",
+      "name": "炽印咏火者",
+      "level": 1,
+      "category": "elite",
+      "role": "mage",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 0,
+        "physicalDefense": 0.8,
+        "magicAttack": 1.875,
+        "magicDefense": 1.2,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "FORGE_MAGE_BASIC",
+          "weight": 75,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "FORGE_ELITE_MAGE_GROWTH",
+          "weight": 25,
+          "selectionMode": "forced_opening"
+        }
+      ]
+    },
+    "RANGE_GRUNT_WARRIOR": {
+      "id": "RANGE_GRUNT_WARRIOR",
+      "name": "猎场盾卫",
+      "level": 1,
+      "category": "minor",
+      "role": "warrior",
+      "defaultPosition": "front",
+      "coefficients": {
+        "physicalAttack": 1,
+        "physicalDefense": 1.2,
+        "magicAttack": 0,
+        "magicDefense": 0.8,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "RANGE_WARRIOR_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "RANGE_GRUNT_SHOOTER": {
+      "id": "RANGE_GRUNT_SHOOTER",
+      "name": "风羽弩手",
+      "level": 1,
+      "category": "minor",
+      "role": "shooter",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 1.25,
+        "physicalDefense": 1,
+        "magicAttack": 0,
+        "magicDefense": 1,
+        "speed": 1
+      },
+      "baseHp": 300,
+      "skills": [
+        {
+          "skillId": "RANGE_SHOOTER_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "RANGE_GRUNT_MAGE": {
+      "id": "RANGE_GRUNT_MAGE",
+      "name": "风痕术士",
+      "level": 1,
+      "category": "minor",
+      "role": "mage",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 0,
+        "physicalDefense": 0.8,
+        "magicAttack": 1.25,
+        "magicDefense": 1.2,
+        "speed": 1
+      },
+      "baseHp": 300,
+      "skills": [
+        {
+          "skillId": "RANGE_MAGE_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "RANGE_ELITE_WARRIOR": {
+      "id": "RANGE_ELITE_WARRIOR",
+      "name": "猎场监军",
+      "level": 1,
+      "category": "elite",
+      "role": "warrior",
+      "defaultPosition": "front",
+      "coefficients": {
+        "physicalAttack": 1.5,
+        "physicalDefense": 1.2,
+        "magicAttack": 0,
+        "magicDefense": 0.8,
+        "speed": 1
+      },
+      "baseHp": 900,
+      "skills": [
+        {
+          "skillId": "RANGE_WARRIOR_BASIC",
+          "weight": 67,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "RANGE_ELITE_WARRIOR_PREVIEW",
+          "weight": 33,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "RANGE_ELITE_SHOOTER": {
+      "id": "RANGE_ELITE_SHOOTER",
+      "name": "裂风箭卫",
+      "level": 1,
+      "category": "elite",
+      "role": "shooter",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 1.875,
+        "physicalDefense": 1,
+        "magicAttack": 0,
+        "magicDefense": 1,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "RANGE_SHOOTER_BASIC",
+          "weight": 75,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "RANGE_ELITE_SHOOTER_AREA",
+          "weight": 25,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "RANGE_ELITE_MAGE": {
+      "id": "RANGE_ELITE_MAGE",
+      "name": "风眼祭司",
+      "level": 1,
+      "category": "elite",
+      "role": "mage",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 0,
+        "physicalDefense": 0.8,
+        "magicAttack": 1.875,
+        "magicDefense": 1.2,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "RANGE_MAGE_BASIC",
+          "weight": 75,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "RANGE_ELITE_MAGE_GROWTH",
+          "weight": 25,
+          "selectionMode": "forced_opening"
+        }
+      ]
+    },
+    "MAGE_GRUNT_WARRIOR": {
+      "id": "MAGE_GRUNT_WARRIOR",
+      "name": "法塔魔像",
+      "level": 1,
+      "category": "minor",
+      "role": "warrior",
+      "defaultPosition": "front",
+      "coefficients": {
+        "physicalAttack": 1,
+        "physicalDefense": 1.2,
+        "magicAttack": 0,
+        "magicDefense": 0.8,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "MAGE_WARRIOR_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "MAGE_GRUNT_SHOOTER": {
+      "id": "MAGE_GRUNT_SHOOTER",
+      "name": "秘法射手",
+      "level": 1,
+      "category": "minor",
+      "role": "shooter",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 1.25,
+        "physicalDefense": 1,
+        "magicAttack": 0,
+        "magicDefense": 1,
+        "speed": 1
+      },
+      "baseHp": 300,
+      "skills": [
+        {
+          "skillId": "MAGE_SHOOTER_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "MAGE_GRUNT_MAGE": {
+      "id": "MAGE_GRUNT_MAGE",
+      "name": "炽印术士",
+      "level": 1,
+      "category": "minor",
+      "role": "mage",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 0,
+        "physicalDefense": 0.8,
+        "magicAttack": 1.25,
+        "magicDefense": 1.2,
+        "speed": 1
+      },
+      "baseHp": 300,
+      "skills": [
+        {
+          "skillId": "MAGE_MAGE_BASIC",
+          "weight": 100,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "MAGE_ELITE_WARRIOR": {
+      "id": "MAGE_ELITE_WARRIOR",
+      "name": "符文守卫",
+      "level": 1,
+      "category": "elite",
+      "role": "warrior",
+      "defaultPosition": "front",
+      "coefficients": {
+        "physicalAttack": 1.5,
+        "physicalDefense": 1.2,
+        "magicAttack": 0,
+        "magicDefense": 0.8,
+        "speed": 1
+      },
+      "baseHp": 900,
+      "skills": [
+        {
+          "skillId": "MAGE_WARRIOR_BASIC",
+          "weight": 67,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "MAGE_ELITE_WARRIOR_PREVIEW",
+          "weight": 33,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "MAGE_ELITE_SHOOTER": {
+      "id": "MAGE_ELITE_SHOOTER",
+      "name": "晶矢使徒",
+      "level": 1,
+      "category": "elite",
+      "role": "shooter",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 1.875,
+        "physicalDefense": 1,
+        "magicAttack": 0,
+        "magicDefense": 1,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "MAGE_SHOOTER_BASIC",
+          "weight": 75,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "MAGE_ELITE_SHOOTER_AREA",
+          "weight": 25,
+          "selectionMode": "weighted"
+        }
+      ]
+    },
+    "MAGE_ELITE_MAGE": {
+      "id": "MAGE_ELITE_MAGE",
+      "name": "炽印咏法者",
+      "level": 1,
+      "category": "elite",
+      "role": "mage",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 0,
+        "physicalDefense": 0.8,
+        "magicAttack": 1.875,
+        "magicDefense": 1.2,
+        "speed": 1
+      },
+      "baseHp": 450,
+      "skills": [
+        {
+          "skillId": "MAGE_MAGE_BASIC",
+          "weight": 75,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "MAGE_ELITE_MAGE_GROWTH",
+          "weight": 25,
+          "selectionMode": "forced_opening"
+        }
+      ]
+    },
+    "FORGE_BOSS_WARRIOR": {
+      "id": "FORGE_BOSS_WARRIOR",
+      "name": "熔核守卫",
+      "level": 1,
+      "category": "boss",
+      "role": "warrior",
+      "defaultPosition": "front",
+      "coefficients": {
+        "physicalAttack": 2.5,
+        "physicalDefense": 1,
+        "magicAttack": 2.5,
+        "magicDefense": 1,
+        "speed": 0.85
+      },
+      "baseHp": 3000,
+      "skills": [
+        {
+          "skillId": "FORGE_BOSS_HEAVY_SLASH",
+          "weight": 50,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "FORGE_BOSS_MOUNTAIN_CHARGE",
+          "weight": 25,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "FORGE_BOSS_MOUNTAIN_CLEAVE",
+          "weight": 0,
+          "selectionMode": "forced_followup"
+        }
+      ]
+    },
+    "RANGE_BOSS_SHOOTER": {
+      "id": "RANGE_BOSS_SHOOTER",
+      "name": "灰羽猎王",
+      "level": 1,
+      "category": "boss",
+      "role": "shooter",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 3,
+        "physicalDefense": 1,
+        "magicAttack": 0,
+        "magicDefense": 1,
+        "speed": 1
+      },
+      "baseHp": 2200,
+      "skills": [
+        {
+          "skillId": "RANGE_BOSS_VOLLEY",
+          "weight": 35,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "RANGE_BOSS_PIERCING_RAIN",
+          "weight": 35,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "RANGE_BOSS_ARROWSTORM_CHARGE",
+          "weight": 30,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "RANGE_BOSS_SKYFALL",
+          "weight": 0,
+          "selectionMode": "forced_followup"
+        }
+      ]
+    },
+    "MAGE_BOSS": {
+      "id": "MAGE_BOSS",
+      "name": "炽印法主",
+      "level": 1,
+      "category": "boss",
+      "role": "mage",
+      "defaultPosition": "back",
+      "coefficients": {
+        "physicalAttack": 0,
+        "physicalDefense": 1,
+        "magicAttack": 2.5,
+        "magicDefense": 1,
+        "speed": 0.9
+      },
+      "baseHp": 2200,
+      "skills": [
+        {
+          "skillId": "MAGE_BOSS_ARCANE_BOLT",
+          "weight": 100,
+          "selectionMode": "weighted"
+        },
+        {
+          "skillId": "MAGE_BOSS_MANA_EXPANSION",
+          "weight": 0,
+          "selectionMode": "forced_followup"
+        }
+      ],
+      "actionCycle": {
+        "counterLabel": "魔力积蓄",
+        "countedSkillIds": [
+          "MAGE_BOSS_ARCANE_BOLT"
+        ],
+        "threshold": 3,
+        "forcedSkillId": "MAGE_BOSS_MANA_EXPANSION"
+      },
+      "temporaryPowerResponse": {
+        "targetSkillId": "MAGE_BOSS_ARCANE_BOLT",
+        "reductionPerPlayerAttack": 10
+      }
+    }
+  },
+  "monsterSkills": {
+    "FORGE_WARRIOR_BASIC": {
+      "id": "FORGE_WARRIOR_BASIC",
+      "tier": "怪物技能",
+      "name": "熔岩斩",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "physical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50物理威力伤害。"
+    },
+    "FORGE_SHOOTER_BASIC": {
+      "id": "FORGE_SHOOTER_BASIC",
+      "tier": "怪物技能",
+      "name": "灰烬箭",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "physical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50物理威力伤害。"
+    },
+    "FORGE_MAGE_BASIC": {
+      "id": "FORGE_MAGE_BASIC",
+      "tier": "怪物技能",
+      "name": "熔火弹",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "magical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50魔法威力伤害。"
+    },
+    "FORGE_ELITE_WARRIOR_PREVIEW": {
+      "id": "FORGE_ELITE_WARRIOR_PREVIEW",
+      "tier": "精英技能",
+      "name": "裂地怒斩",
+      "behaviorCategory": "预告攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 150,
+        "damageType": "physical",
+        "targetRule": "enemy_single",
+        "telegraph": {
+          "enabled": true,
+          "followupSkillId": "FORGE_ELITE_WARRIOR_PREVIEW",
+          "targetSelection": "random_legal_single_target",
+          "lockMode": "unit",
+          "invalidTargetResult": "whiff"
+        }
+      },
+      "description": "预告并锁定当前合法单体目标；下一次正常行动造成150物理威力伤害，目标失效时落空。"
+    },
+    "FORGE_ELITE_SHOOTER_AREA": {
+      "id": "FORGE_ELITE_SHOOTER_AREA",
+      "tier": "怪物技能",
+      "name": "焦羽箭雨",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 40,
+        "damageType": "physical",
+        "targetRule": "enemy_all"
+      },
+      "description": "对玩家场上全体分别造成40物理威力伤害。"
+    },
+    "FORGE_ELITE_MAGE_GROWTH": {
+      "id": "FORGE_ELITE_MAGE_GROWTH",
+      "tier": "精英技能",
+      "name": "魔力强化",
+      "behaviorCategory": "强化",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "damageType": "none",
+        "targetRule": "self",
+        "effects": [
+          {
+            "type": "increase_runtime_skill_power",
+            "targetSkillId": "FORGE_MAGE_BASIC",
+            "amount": 15
+          }
+        ]
+      },
+      "description": "本场战斗中直接使【熔火弹】当前威力提高15，不创建状态，可无限成长。"
+    },
+    "RANGE_WARRIOR_BASIC": {
+      "id": "RANGE_WARRIOR_BASIC",
+      "tier": "怪物技能",
+      "name": "猎场重击",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "physical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50物理威力伤害。"
+    },
+    "RANGE_SHOOTER_BASIC": {
+      "id": "RANGE_SHOOTER_BASIC",
+      "tier": "怪物技能",
+      "name": "风羽箭",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "physical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50物理威力伤害。"
+    },
+    "RANGE_MAGE_BASIC": {
+      "id": "RANGE_MAGE_BASIC",
+      "tier": "怪物技能",
+      "name": "风刃术",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "magical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50魔法威力伤害。"
+    },
+    "RANGE_ELITE_WARRIOR_PREVIEW": {
+      "id": "RANGE_ELITE_WARRIOR_PREVIEW",
+      "tier": "精英技能",
+      "name": "破风强袭",
+      "behaviorCategory": "预告攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 150,
+        "damageType": "physical",
+        "targetRule": "enemy_single",
+        "telegraph": {
+          "enabled": true,
+          "followupSkillId": "RANGE_ELITE_WARRIOR_PREVIEW",
+          "targetSelection": "random_legal_single_target",
+          "lockMode": "unit",
+          "invalidTargetResult": "whiff"
+        }
+      },
+      "description": "预告并锁定当前合法单体目标；下一次正常行动造成150物理威力伤害，目标失效时落空。"
+    },
+    "RANGE_ELITE_SHOOTER_AREA": {
+      "id": "RANGE_ELITE_SHOOTER_AREA",
+      "tier": "怪物技能",
+      "name": "裂风箭雨",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 40,
+        "damageType": "physical",
+        "targetRule": "enemy_all"
+      },
+      "description": "对玩家场上全体分别造成40物理威力伤害。"
+    },
+    "RANGE_ELITE_MAGE_GROWTH": {
+      "id": "RANGE_ELITE_MAGE_GROWTH",
+      "tier": "精英技能",
+      "name": "风力增幅",
+      "behaviorCategory": "强化",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "damageType": "none",
+        "targetRule": "self",
+        "effects": [
+          {
+            "type": "increase_runtime_skill_power",
+            "targetSkillId": "RANGE_MAGE_BASIC",
+            "amount": 15
+          }
+        ]
+      },
+      "description": "本场战斗中直接使【风刃术】当前威力提高15，不创建状态，可无限成长。"
+    },
+    "MAGE_WARRIOR_BASIC": {
+      "id": "MAGE_WARRIOR_BASIC",
+      "tier": "怪物技能",
+      "name": "符文重击",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "physical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50物理威力伤害。"
+    },
+    "MAGE_SHOOTER_BASIC": {
+      "id": "MAGE_SHOOTER_BASIC",
+      "tier": "怪物技能",
+      "name": "晶矢",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "physical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50物理威力伤害。"
+    },
+    "MAGE_MAGE_BASIC": {
+      "id": "MAGE_MAGE_BASIC",
+      "tier": "怪物技能",
+      "name": "炽焰弹",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 50,
+        "damageType": "magical",
+        "targetRule": "enemy_single"
+      },
+      "description": "对当前合法单体目标造成50魔法威力伤害。"
+    },
+    "MAGE_ELITE_WARRIOR_PREVIEW": {
+      "id": "MAGE_ELITE_WARRIOR_PREVIEW",
+      "tier": "精英技能",
+      "name": "巨像震击",
+      "behaviorCategory": "预告攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 150,
+        "damageType": "physical",
+        "targetRule": "enemy_single",
+        "telegraph": {
+          "enabled": true,
+          "followupSkillId": "MAGE_ELITE_WARRIOR_PREVIEW",
+          "targetSelection": "random_legal_single_target",
+          "lockMode": "unit",
+          "invalidTargetResult": "whiff"
+        }
+      },
+      "description": "预告并锁定当前合法单体目标；下一次正常行动造成150物理威力伤害，目标失效时落空。"
+    },
+    "MAGE_ELITE_SHOOTER_AREA": {
+      "id": "MAGE_ELITE_SHOOTER_AREA",
+      "tier": "怪物技能",
+      "name": "晶矢散射",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 40,
+        "damageType": "physical",
+        "targetRule": "enemy_all"
+      },
+      "description": "对玩家场上全体分别造成40物理威力伤害。"
+    },
+    "MAGE_ELITE_MAGE_GROWTH": {
+      "id": "MAGE_ELITE_MAGE_GROWTH",
+      "tier": "精英技能",
+      "name": "魔力强化",
+      "behaviorCategory": "强化",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "damageType": "none",
+        "targetRule": "self",
+        "effects": [
+          {
+            "type": "increase_runtime_skill_power",
+            "targetSkillId": "MAGE_MAGE_BASIC",
+            "amount": 15
+          }
+        ]
+      },
+      "description": "本场战斗中直接使【炽焰弹】当前威力提高15，不创建状态，可无限成长。"
+    },
+    "FORGE_BOSS_HEAVY_SLASH": {
+      "id": "FORGE_BOSS_HEAVY_SLASH",
+      "tier": "Boss技能",
+      "name": "前排重击",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 100,
+        "damageType": "physical",
+        "targetRule": "enemy_single",
+        "targetPreference": "front"
+      },
+      "description": "对当前玩家前排单体造成100物理威力伤害；没有前排时改为攻击当前后排。"
+    },
+    "FORGE_BOSS_MOUNTAIN_CLEAVE": {
+      "id": "FORGE_BOSS_MOUNTAIN_CLEAVE",
+      "tier": "Boss技能",
+      "name": "高温爆发",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 200,
+        "damageType": "physical",
+        "targetRule": "enemy_single",
+        "targetPreference": "front",
+        "specialEffects": [
+          "apply_exposed"
+        ]
+      },
+      "description": "对锁定目标行的当前占用者造成200物理威力伤害；换宠后由同一行的新单位承受，该行为空时落空。完成全部结算后进入熔核破绽。"
+    },
+    "FORGE_BOSS_MOUNTAIN_CHARGE": {
+      "id": "FORGE_BOSS_MOUNTAIN_CHARGE",
+      "tier": "Boss技能",
+      "name": "熔核蓄力",
+      "behaviorCategory": "预告攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "damageType": "none",
+        "targetRule": "self",
+        "targetPreference": "front",
+        "telegraph": {
+          "enabled": true,
+          "followupSkillId": "FORGE_BOSS_MOUNTAIN_CLEAVE",
+          "targetSelection": "random_legal_single_target",
+          "lockMode": "position",
+          "invalidTargetResult": "whiff"
+        }
+      },
+      "description": "本次行动进入蓄力，锁定当前玩家前排目标行；下一次合法行动强制使用【高温爆发】，换宠不会解除锁定。"
+    },
+    "RANGE_BOSS_VOLLEY": {
+      "id": "RANGE_BOSS_VOLLEY",
+      "tier": "Boss技能",
+      "name": "雷鸣箭雨",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 35,
+        "damageType": "physical",
+        "targetRule": "enemy_all",
+        "targetPreference": "back",
+        "effects": [
+          {
+            "type": "apply_status",
+            "statusId": "hunter-wound",
+            "name": "猎伤",
+            "temporary": false,
+            "clearOnBench": true,
+            "stackable": true,
+            "maxStacks": 4,
+            "stacks": 1
+          }
+        ]
+      },
+      "description": "对当前玩家后排全体分别造成35物理威力伤害；没有后排时改为攻击当前前排。命中且目标存活时施加1层【猎伤】。"
+    },
+    "RANGE_BOSS_PIERCING_RAIN": {
+      "id": "RANGE_BOSS_PIERCING_RAIN",
+      "tier": "Boss技能",
+      "name": "狙击",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 60,
+        "damageType": "physical",
+        "targetRule": "enemy_single",
+        "targetPreference": "back",
+        "targetSelection": "controlled_random_no_immediate_repeat",
+        "effects": [
+          {
+            "type": "apply_status",
+            "statusId": "hunter-wound",
+            "name": "猎伤",
+            "temporary": false,
+            "clearOnBench": true,
+            "stackable": true,
+            "maxStacks": 4,
+            "stacks": 1
+          }
+        ]
+      },
+      "description": "随机攻击一名当前玩家后排，造成60物理威力伤害并在目标存活时施加1层【猎伤】；存在其他合法后排目标时，不会连续攻击同一目标；没有后排时改为攻击当前前排。"
+    },
+    "RANGE_BOSS_SKYFALL": {
+      "id": "RANGE_BOSS_SKYFALL",
+      "tier": "Boss技能",
+      "name": "雷霆贯射",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "power": 100,
+        "damageType": "physical",
+        "targetRule": "enemy_single",
+        "targetPreference": "back",
+        "targetStatusDamageInteraction": {
+          "statusId": "hunter-wound",
+          "finalDamageMultiplierPerStack": 0.4
+        }
+      },
+      "description": "对锁定目标造成100物理威力伤害；目标每层【猎伤】使本次最终伤害提高40%，贯射后不消耗猎伤。若目标换宠则命中同一行的新单位，该行为空时落空且不重新选择。"
+    },
+    "RANGE_BOSS_ARROWSTORM_CHARGE": {
+      "id": "RANGE_BOSS_ARROWSTORM_CHARGE",
+      "tier": "Boss技能",
+      "name": "锁定蓄势",
+      "behaviorCategory": "预告攻击",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "damageType": "none",
+        "targetRule": "self",
+        "targetPreference": "back",
+        "telegraph": {
+          "enabled": true,
+          "followupSkillId": "RANGE_BOSS_SKYFALL",
+          "targetSelection": "random_legal_single_target",
+          "lockMode": "unit",
+          "invalidTargetResult": "whiff"
+        }
+      },
+      "description": "随机锁定一名当前玩家后排；没有后排时锁定当前前排。下一次合法行动强制使用【雷霆贯射】。"
+    },
+    "MAGE_BOSS_ARCANE_BOLT": {
+      "id": "MAGE_BOSS_ARCANE_BOLT",
+      "tier": "Boss技能",
+      "name": "魔力脉冲",
+      "behaviorCategory": "攻击",
+      "cooldown": 0,
+      "isBasicAttack": true,
+      "execution": {
+        "power": 80,
+        "damageType": "magical",
+        "targetRule": "enemy_single",
+        "targetPreference": "front",
+        "consumeTemporaryPowerAfterUse": true
+      },
+      "description": "对当前玩家前排单体造成当前威力的魔法伤害；没有前排时改为攻击当前后排。"
+    },
+    "MAGE_BOSS_MANA_EXPANSION": {
+      "id": "MAGE_BOSS_MANA_EXPANSION",
+      "tier": "Boss技能",
+      "name": "魔力增幅",
+      "behaviorCategory": "强化",
+      "cooldown": 0,
+      "isBasicAttack": false,
+      "execution": {
+        "damageType": "none",
+        "targetRule": "self",
+        "effects": [
+          {
+            "type": "increase_runtime_skill_power",
+            "targetSkillId": "MAGE_BOSS_ARCANE_BOLT",
+            "amount": 40
+          },
+          {
+            "type": "set_runtime_skill_temporary_power",
+            "targetSkillId": "MAGE_BOSS_ARCANE_BOLT",
+            "amount": 80
+          }
+        ]
+      },
+      "description": "本次行动不造成伤害，使【魔力脉冲】永久威力+40，并获得下一次脉冲临时威力+80；玩家每次攻击命中使临时威力降低10，下一次脉冲结算后清除剩余临时威力。"
+    }
+  }
+}
