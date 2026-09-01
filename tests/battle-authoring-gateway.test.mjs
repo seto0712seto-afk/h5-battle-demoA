@@ -143,6 +143,91 @@ test('health, contract and definition reads expose DTOs with the correct per-sou
   assert.equal(JSON.stringify([players.body, enemies.body]).includes('sourcePath'), false);
 });
 
+test('exact local Aries origins can read the browser contract and definitions', async () => {
+  const fixture = await createFixture();
+  const { gateway } = await startFixtureGateway(fixture);
+  const cases = [
+    ['http://127.0.0.1:5174', '/v1/contract'],
+    ['http://127.0.0.1:5174', '/v1/definitions/player-spirit'],
+    ['http://127.0.0.1:4175', '/v1/definitions/enemy'],
+    ['http://127.0.0.1:4175', '/v1/health']
+  ];
+
+  for (const [origin, pathname] of cases) {
+    const { response, body } = await requestJson(gateway, pathname, { headers: { Origin: origin } });
+    assert.equal(response.status, 200);
+    assert.equal(body.ok, true);
+    assert.equal(response.headers.get('access-control-allow-origin'), origin);
+    assert.equal(response.headers.get('vary'), 'Origin');
+    assert.notEqual(response.headers.get('access-control-allow-origin'), '*');
+  }
+});
+
+test('non-allowlisted browser origins are rejected without wildcard or reflection', async () => {
+  const fixture = await createFixture();
+  const { gateway } = await startFixtureGateway(fixture);
+  const origins = [
+    'http://localhost:5174',
+    'http://192.168.1.20:4175',
+    'http://127.0.0.1:9999',
+    'https://127.0.0.1:4175',
+    'null',
+    'http://127.0.0.1:4175.attacker.example',
+    'http://127.0.0.1.evil.test:4175',
+    'http://127.0.0.1:41750'
+  ];
+
+  for (const origin of origins) {
+    const { response, body } = await requestJson(gateway, '/v1/definitions/enemy', {
+      headers: { Origin: origin }
+    });
+    assert.equal(response.status, 403);
+    assert.equal(body.error.reason, 'browser-origin-forbidden');
+    assert.equal(body.error.sourceState, 'not-modified');
+    assert.equal(body.error.diagnostics[0].code, 'BROWSER_ORIGIN_FORBIDDEN');
+    assert.equal(response.headers.get('access-control-allow-origin'), null);
+    assert.notEqual(response.headers.get('access-control-allow-origin'), '*');
+    assert.notEqual(response.headers.get('access-control-allow-origin'), origin);
+  }
+});
+
+test('every Origin-bearing update is rejected before any canonical writer adapter is called', async () => {
+  const fixture = await createFixture();
+  let playerWrites = 0;
+  let enemyWrites = 0;
+  const { gateway } = await startFixtureGateway(fixture, {
+    writePlayerSpirit: async () => {
+      playerWrites += 1;
+      throw new Error('browser-origin write reached player adapter');
+    },
+    writeEnemy: async () => {
+      enemyWrites += 1;
+      throw new Error('browser-origin write reached enemy adapter');
+    }
+  });
+  const requestBody = JSON.stringify({
+    kind: 'playerSpirit',
+    id: 'P01',
+    changes: { name: 'must-not-write' },
+    sourceRevision: 'revision'
+  });
+
+  for (const origin of ['http://127.0.0.1:5174', 'http://127.0.0.1:4175', 'https://attacker.example']) {
+    const { response, body } = await requestJson(gateway, '/v1/updates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: requestBody
+    });
+    assert.equal(response.status, 403);
+    assert.equal(body.error.reason, 'browser-origin-forbidden');
+    assert.equal(body.error.sourceState, 'not-modified');
+    assert.equal(body.error.diagnostics[0].code, 'BROWSER_ORIGIN_FORBIDDEN');
+    assert.equal(response.headers.get('access-control-allow-origin'), null);
+  }
+  assert.equal(playerWrites, 0);
+  assert.equal(enemyWrites, 0);
+});
+
 test('Player Spirit HTTP update writes the fixture and returns the disk-reread DTO and revision', async () => {
   const fixture = await createFixture();
   const { gateway } = await startFixtureGateway(fixture);

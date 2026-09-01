@@ -84,6 +84,17 @@ const RESOURCE_KIND_BY_PATH = {
   '/v1/definitions/enemy': 'enemy'
 } as const;
 
+const BATTLE_AUTHORING_GATEWAY_BROWSER_READ_ORIGINS = new Set([
+  'http://127.0.0.1:5174',
+  'http://127.0.0.1:4175'
+]);
+
+const BATTLE_AUTHORING_GATEWAY_BROWSER_READ_PATHS = new Set([
+  '/v1/health',
+  '/v1/contract',
+  ...Object.keys(RESOURCE_KIND_BY_PATH)
+]);
+
 const OPERATIONAL_MESSAGES: Readonly<Record<string, string>> = {
   STALE_SOURCE: 'Canonical source revision is stale.',
   SOURCE_PARSE_FAILURE: 'Canonical source could not be parsed.',
@@ -303,6 +314,28 @@ export function createBattleAuthoringGatewayServer(adapter: BattleAuthoringGatew
   return createServer(async (request, response) => {
     try {
       const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+      const origin = request.headers.origin;
+      if (origin !== undefined) {
+        const isAllowedRead = request.method === 'GET'
+          && BATTLE_AUTHORING_GATEWAY_BROWSER_READ_PATHS.has(pathname)
+          && BATTLE_AUTHORING_GATEWAY_BROWSER_READ_ORIGINS.has(origin);
+        if (!isAllowedRead) {
+          request.resume();
+          return gatewayFailure(
+            response,
+            403,
+            'browser-origin-forbidden',
+            'not-modified',
+            [envelopeDiagnostic(
+              'BROWSER_ORIGIN_FORBIDDEN',
+              '$',
+              'Browser origin is not permitted for this authoring operation.'
+            )]
+          );
+        }
+        response.setHeader('Access-Control-Allow-Origin', origin);
+        response.setHeader('Vary', 'Origin');
+      }
 
       if (pathname === '/v1/health') {
         if (request.method !== 'GET') return methodNotAllowed(request, response, 'GET');
