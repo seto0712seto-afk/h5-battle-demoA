@@ -1,7 +1,12 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { open, readFile, rename, stat, unlink } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import * as ts from 'typescript';
+import { authoringPropertyName, printAuthoringLiteral } from './authoringSourceAst';
+import {
+  authoringSourceRevision,
+  runAuthoringSourceTransaction
+} from './authoringSourceTransaction';
+import type { AuthoringSourceTransactionHooks } from './authoringSourceTransaction';
 import {
   BATTLE_MONSTER_AUTHORING_CONTRACT,
   createPlayerSpiritAuthoringDto,
@@ -58,14 +63,7 @@ export type PlayerSpiritSourceReadResult =
       diagnostics: PlayerSpiritWriteBackDiagnostic[];
     };
 
-interface PlayerSpiritWriteBackTestHooks {
-  /** Fault-injection boundary for isolated filesystem failure tests. */
-  beforeTempWrite?: () => void | Promise<void>;
-  /** Fault-injection boundary used to prove rollback after atomic replacement. */
-  beforePostWriteVerification?: () => void | Promise<void>;
-  /** Fault-injection boundary used to prove unknown-state recovery reporting. */
-  beforeRollback?: () => void | Promise<void>;
-}
+interface PlayerSpiritWriteBackTestHooks extends AuthoringSourceTransactionHooks {}
 
 export interface PlayerSpiritWriteBackCoreRequest {
   sourcePath: string;
@@ -147,19 +145,9 @@ function failure(
   };
 }
 
-function sourceRevision(sourceText: string): string {
-  return createHash('sha256').update(sourceText, 'utf8').digest('hex');
-}
-
 function propertyName(property: ts.PropertyName, sourceFile: ts.SourceFile): string | null {
-  if (ts.isIdentifier(property) || ts.isStringLiteral(property) || ts.isNumericLiteral(property)) {
-    return property.text;
-  }
-  if (ts.isComputedPropertyName(property) && ts.isStringLiteral(property.expression)) {
-    return property.expression.text;
-  }
   void sourceFile;
-  return null;
+  return authoringPropertyName(property);
 }
 
 function literalValue(node: ts.Expression, sourceFile: ts.SourceFile): unknown {
@@ -273,7 +261,7 @@ function asSpiritData(values: Record<string, unknown>): SpiritData {
 function snapshotFromParsed(sourcePath: string, sourceText: string, parsed: ParsedDataSource): PlayerSpiritSourceSnapshot {
   return {
     sourcePath,
-    revision: sourceRevision(sourceText),
+    revision: authoringSourceRevision(sourceText),
     spirits: parsed.spirits.map((spirit) => createPlayerSpiritAuthoringDto(asSpiritData(spirit.values)))
   };
 }
@@ -299,21 +287,6 @@ export async function readPlayerSpiritAuthoringSourceAtPath(sourcePath: string):
       diagnostics: [writerDiagnostic('FILESYSTEM_FAILURE', canonicalPath, error instanceof Error ? error.message : 'Read failed.')]
     };
   }
-}
-
-function expressionForValue(value: string | number): ts.Expression {
-  if (typeof value === 'string') return ts.factory.createStringLiteral(value, true);
-  if (value < 0 || Object.is(value, -0)) {
-    return ts.factory.createPrefixUnaryExpression(
-      ts.SyntaxKind.MinusToken,
-      ts.factory.createNumericLiteral(Math.abs(value))
-    );
-  }
-  return ts.factory.createNumericLiteral(value);
-}
-
-function printedExpression(value: string | number, sourceFile: ts.SourceFile): string {
-  return ts.createPrinter().printNode(ts.EmitHint.Expression, expressionForValue(value), sourceFile);
 }
 
 function objectProperties(
@@ -384,7 +357,7 @@ function transformPlayerSpirit(
         writerDiagnostic('SOURCE_TRANSFORM_FAILURE', `changes.${field}`, 'Validated field is not a writable literal.')
       );
     }
-    const replacement = printedExpression(value, parsed.sourceFile);
+    const replacement = printAuthoringLiteral(value, parsed.sourceFile);
     if (property) {
       edits.push({ start: property.initializer.getStart(parsed.sourceFile), end: property.initializer.getEnd(), text: replacement });
       continue;
@@ -510,24 +483,6 @@ function verifyTransformedSource(
   return transformed;
 }
 
-async function writeTempFile(path: string, sourceText: string, mode: number): Promise<void> {
-  const handle = await open(path, 'wx', mode);
-  try {
-    await handle.writeFile(sourceText, 'utf8');
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-}
-
-async function removeIfPresent(path: string): Promise<void> {
-  try {
-    await unlink(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
-}
-
 async function currentSourceOrFailure(sourcePath: string): Promise<{ text: string; parsed: ParsedDataSource }> {
   let text: string;
   try {
@@ -569,7 +524,7 @@ export async function writePlayerSpiritAuthoringUpdateAtPath(
       writerDiagnostic('FILESYSTEM_FAILURE', sourcePath, error instanceof Error ? error.message : 'Read failed.')
     );
   }
-  if (sourceRevision(current.text) !== request.expectedRevision) {
+  if (authoringSourceRevision(current.text) !== request.expectedRevision) {
     return failure(
       'stale-source',
       writerDiagnostic('STALE_SOURCE', sourcePath, 'Canonical source changed after the authoring snapshot was read.')
@@ -599,113 +554,21 @@ export async function writePlayerSpiritAuthoringUpdateAtPath(
     );
   }
 
-  const directory = dirname(sourcePath);
-  const name = basename(sourcePath);
-  const tempPath = join(directory, `.${name}.${randomUUID()}.tmp`);
-  const backupPath = join(directory, `.${name}.${randomUUID()}.rollback`);
-  let replaced = false;
-  let preserveBackup = false;
-  try {
-    const sourceStat = await stat(sourcePath);
-    await request.hooks?.beforeTempWrite?.();
-    await writeTempFile(tempPath, transformed.sourceText, sourceStat.mode);
-    await writeTempFile(backupPath, current.text, sourceStat.mode);
-
-    const immediatelyCurrent = await readSourceText(sourcePath);
-    if (sourceRevision(immediatelyCurrent) !== request.expectedRevision) {
-      await removeIfPresent(tempPath);
-      await removeIfPresent(backupPath);
-      return failure(
-        'stale-source',
-        writerDiagnostic('STALE_SOURCE', sourcePath, 'Canonical source changed before atomic replacement.')
-      );
-    }
-
-    await rename(tempPath, sourcePath);
-    replaced = true;
-    try {
-      await request.hooks?.beforePostWriteVerification?.();
-      const writtenText = await readSourceText(sourcePath);
+  return runAuthoringSourceTransaction({
+    sourcePath,
+    expectedRevision: request.expectedRevision,
+    originalSourceText: current.text,
+    transformedSourceText: transformed.sourceText,
+    hooks: request.hooks,
+    verifyWrittenSource(verifiedPath, writtenText) {
       const writtenParsed = verifyTransformedSource(
-        sourcePath,
+        verifiedPath,
         current.parsed,
         writtenText,
         validation.update.id,
         validation.update.changes
       );
-      if (writtenText !== transformed.sourceText) {
-        throw new Error('Written source does not match the verified transformation.');
-      }
-      const snapshot = snapshotFromParsed(sourcePath, writtenText, writtenParsed);
-      await removeIfPresent(backupPath);
-      return { ok: true, snapshot, sourceState: 'updated', recoveryPath: null, diagnostics: [] };
-    } catch (postWriteError) {
-      const postWriteDiagnostic = writerDiagnostic(
-        'POST_WRITE_VERIFICATION_FAILURE',
-        sourcePath,
-        postWriteError instanceof Error ? postWriteError.message : 'Post-write verification failed.'
-      );
-      try {
-        await request.hooks?.beforeRollback?.();
-        await rename(backupPath, sourcePath);
-        replaced = false;
-        const restored = await readSourceText(sourcePath);
-        if (restored !== current.text) throw new Error('Rollback content does not match the original source.');
-        return failure('post-write-verification-failure', postWriteDiagnostic, 'original-restored');
-      } catch (rollbackError) {
-        preserveBackup = true;
-        return failure(
-          'rollback-failure',
-          [
-            postWriteDiagnostic,
-            writerDiagnostic(
-              'ROLLBACK_FAILURE',
-              sourcePath,
-              rollbackError instanceof Error ? rollbackError.message : 'Rollback failed.'
-            )
-          ],
-          'unknown',
-          backupPath
-        );
-      }
+      return snapshotFromParsed(verifiedPath, writtenText, writtenParsed);
     }
-  } catch (error) {
-    if (replaced) {
-      try {
-        await request.hooks?.beforeRollback?.();
-        await rename(backupPath, sourcePath);
-        replaced = false;
-        const restored = await readSourceText(sourcePath);
-        if (restored !== current.text) throw new Error('Rollback content does not match the original source.');
-      } catch (rollbackError) {
-        preserveBackup = true;
-        return failure(
-          'rollback-failure',
-          [
-            writerDiagnostic(
-              'FILESYSTEM_FAILURE',
-              sourcePath,
-              error instanceof Error ? error.message : 'Write failed after canonical replacement.'
-            ),
-            writerDiagnostic(
-              'ROLLBACK_FAILURE',
-              sourcePath,
-              rollbackError instanceof Error ? rollbackError.message : 'Rollback failed.'
-            )
-          ],
-          'unknown',
-          backupPath
-        );
-      }
-    }
-    return failure(
-      'filesystem-failure',
-      writerDiagnostic('FILESYSTEM_FAILURE', sourcePath, error instanceof Error ? error.message : 'Atomic write failed.')
-    );
-  } finally {
-    await Promise.allSettled([
-      removeIfPresent(tempPath),
-      ...(preserveBackup ? [] : [removeIfPresent(backupPath)])
-    ]);
-  }
+  });
 }
