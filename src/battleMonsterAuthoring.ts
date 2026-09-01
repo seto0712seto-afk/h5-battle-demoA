@@ -208,7 +208,7 @@ export function createPlayerSpiritAuthoringDto(spirit: SpiritData): PlayerSpirit
   };
 }
 
-function enemyDto(monster: MonsterDefinition): EnemyMonsterAuthoringDto {
+export function createEnemyMonsterAuthoringDto(monster: MonsterDefinition): EnemyMonsterAuthoringDto {
   return {
     kind: 'enemyMonster',
     id: monster.id,
@@ -228,7 +228,7 @@ function enemyDto(monster: MonsterDefinition): EnemyMonsterAuthoringDto {
 export function getBattleMonsterAuthoringDefinitions(): BattleMonsterAuthoringDto[] {
   return [
     ...SPIRITS.map(createPlayerSpiritAuthoringDto),
-    ...Object.values(MONSTERS).map(enemyDto)
+    ...Object.values(MONSTERS).map(createEnemyMonsterAuthoringDto)
   ];
 }
 
@@ -239,7 +239,7 @@ export function getPlayerSpiritAuthoringDefinition(id: string): PlayerSpiritAuth
 
 export function getEnemyMonsterAuthoringDefinition(id: string): EnemyMonsterAuthoringDto | null {
   const monster = enemyDefinitionById(id);
-  return monster ? enemyDto(monster) : null;
+  return monster ? createEnemyMonsterAuthoringDto(monster) : null;
 }
 
 function diagnostic(code: AuthoringDiagnosticCode, path: string, message: string): AuthoringDiagnostic {
