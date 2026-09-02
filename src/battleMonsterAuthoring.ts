@@ -3,37 +3,6 @@ import { MONSTERS } from './monsterData';
 import type { MonsterDefinition, MonsterRole } from './monsterTypes';
 import type { BattleBehavior, Row, SpiritData } from './types';
 
-export const BATTLE_MONSTER_AUTHORING_CONTRACT = {
-  version: 'S4B-1',
-  definitionKinds: {
-    playerSpirit: {
-      editableFields: [
-        'name',
-        'primaryRole',
-        'secondaryRole',
-        'maxHp',
-        'physicalAttack',
-        'physicalDefense',
-        'magicAttack',
-        'magicDefense',
-        'speed',
-        'accent',
-        'defaultPosition',
-        'shortDescription',
-        'battleStyle',
-        'playTip'
-      ],
-      readOnlyFields: ['id', 'skillIds']
-    },
-    enemyMonster: {
-      editableFields: ['name', 'level', 'category', 'role', 'defaultPosition', 'coefficients', 'baseHp'],
-      readOnlyFields: ['id', 'skills', 'actionCycle', 'temporaryPowerResponse']
-    }
-  }
-} as const;
-
-export type BattleMonsterAuthoringKind = keyof typeof BATTLE_MONSTER_AUTHORING_CONTRACT.definitionKinds;
-
 export interface PlayerSpiritEditableFields {
   name: string;
   primaryRole: BattleBehavior;
@@ -60,6 +29,153 @@ export interface EnemyMonsterEditableFields {
   coefficients: MonsterDefinition['coefficients'];
   baseHp: number;
 }
+
+interface BattleAuthoringFieldSchemaBase {
+  optional: boolean;
+  nullable: boolean;
+}
+
+export interface BattleAuthoringStringFieldSchema extends BattleAuthoringFieldSchemaBase {
+  type: 'string';
+}
+
+export interface BattleAuthoringNumberFieldSchema extends BattleAuthoringFieldSchemaBase {
+  type: 'number';
+  finite: true;
+}
+
+export interface BattleAuthoringEnumFieldSchema extends BattleAuthoringFieldSchemaBase {
+  type: 'enum';
+  values: readonly string[];
+}
+
+export type BattleAuthoringScalarFieldSchema =
+  | BattleAuthoringStringFieldSchema
+  | BattleAuthoringNumberFieldSchema
+  | BattleAuthoringEnumFieldSchema;
+
+export interface BattleAuthoringObjectFieldSchema extends BattleAuthoringFieldSchemaBase {
+  type: 'object';
+  fields: Readonly<Record<string, BattleAuthoringScalarFieldSchema>>;
+  additionalFields: false;
+}
+
+export type BattleAuthoringFieldSchema =
+  | BattleAuthoringScalarFieldSchema
+  | BattleAuthoringObjectFieldSchema;
+
+export const BATTLE_AUTHORING_ENUM_VALUES = {
+  battleBehavior: ['attack', 'protect', 'recover', 'energy'],
+  row: ['front', 'back'],
+  monsterCategory: ['minor', 'elite', 'boss'],
+  monsterRole: ['warrior', 'shooter', 'mage']
+} as const satisfies {
+  battleBehavior: readonly BattleBehavior[];
+  row: readonly Row[];
+  monsterCategory: readonly MonsterDefinition['category'][];
+  monsterRole: readonly MonsterRole[];
+};
+
+export const PLAYER_SPIRIT_AUTHORING_FIELD_SCHEMA = {
+  name: { type: 'string', optional: false, nullable: false },
+  primaryRole: {
+    type: 'enum',
+    values: BATTLE_AUTHORING_ENUM_VALUES.battleBehavior,
+    optional: false,
+    nullable: false
+  },
+  secondaryRole: {
+    type: 'enum',
+    values: BATTLE_AUTHORING_ENUM_VALUES.battleBehavior,
+    optional: true,
+    nullable: false
+  },
+  maxHp: { type: 'number', finite: true, optional: false, nullable: false },
+  physicalAttack: { type: 'number', finite: true, optional: false, nullable: false },
+  physicalDefense: { type: 'number', finite: true, optional: false, nullable: false },
+  magicAttack: { type: 'number', finite: true, optional: false, nullable: false },
+  magicDefense: { type: 'number', finite: true, optional: false, nullable: false },
+  speed: { type: 'number', finite: true, optional: false, nullable: false },
+  accent: { type: 'string', optional: false, nullable: false },
+  defaultPosition: {
+    type: 'enum',
+    values: BATTLE_AUTHORING_ENUM_VALUES.row,
+    optional: false,
+    nullable: false
+  },
+  shortDescription: { type: 'string', optional: false, nullable: false },
+  battleStyle: { type: 'string', optional: false, nullable: false },
+  playTip: { type: 'string', optional: false, nullable: false }
+} as const satisfies {
+  [Field in keyof PlayerSpiritEditableFields]-?: BattleAuthoringFieldSchema;
+};
+
+export const ENEMY_MONSTER_COEFFICIENT_FIELD_SCHEMA = {
+  physicalAttack: { type: 'number', finite: true, optional: false, nullable: false },
+  physicalDefense: { type: 'number', finite: true, optional: false, nullable: false },
+  magicAttack: { type: 'number', finite: true, optional: false, nullable: false },
+  magicDefense: { type: 'number', finite: true, optional: false, nullable: false },
+  speed: { type: 'number', finite: true, optional: false, nullable: false }
+} as const satisfies {
+  [Field in keyof MonsterDefinition['coefficients']]-?: BattleAuthoringNumberFieldSchema;
+};
+
+export const ENEMY_MONSTER_AUTHORING_FIELD_SCHEMA = {
+  name: { type: 'string', optional: false, nullable: false },
+  level: { type: 'number', finite: true, optional: false, nullable: false },
+  category: {
+    type: 'enum',
+    values: BATTLE_AUTHORING_ENUM_VALUES.monsterCategory,
+    optional: false,
+    nullable: false
+  },
+  role: {
+    type: 'enum',
+    values: BATTLE_AUTHORING_ENUM_VALUES.monsterRole,
+    optional: true,
+    nullable: false
+  },
+  defaultPosition: {
+    type: 'enum',
+    values: BATTLE_AUTHORING_ENUM_VALUES.row,
+    optional: false,
+    nullable: false
+  },
+  coefficients: {
+    type: 'object',
+    fields: ENEMY_MONSTER_COEFFICIENT_FIELD_SCHEMA,
+    additionalFields: false,
+    optional: false,
+    nullable: false
+  },
+  baseHp: { type: 'number', finite: true, optional: false, nullable: false }
+} as const satisfies {
+  [Field in keyof EnemyMonsterEditableFields]-?: BattleAuthoringFieldSchema;
+};
+
+function fieldNames<TSchema extends Readonly<Record<string, BattleAuthoringFieldSchema>>>(
+  schema: TSchema
+): Array<Extract<keyof TSchema, string>> {
+  return Object.keys(schema) as Array<Extract<keyof TSchema, string>>;
+}
+
+export const BATTLE_MONSTER_AUTHORING_CONTRACT = {
+  version: 'S4B-1',
+  definitionKinds: {
+    playerSpirit: {
+      editableFields: fieldNames(PLAYER_SPIRIT_AUTHORING_FIELD_SCHEMA),
+      readOnlyFields: ['id', 'skillIds'],
+      fieldSchema: PLAYER_SPIRIT_AUTHORING_FIELD_SCHEMA
+    },
+    enemyMonster: {
+      editableFields: fieldNames(ENEMY_MONSTER_AUTHORING_FIELD_SCHEMA),
+      readOnlyFields: ['id', 'skills', 'actionCycle', 'temporaryPowerResponse'],
+      fieldSchema: ENEMY_MONSTER_AUTHORING_FIELD_SCHEMA
+    }
+  }
+} as const;
+
+export type BattleMonsterAuthoringKind = keyof typeof BATTLE_MONSTER_AUTHORING_CONTRACT.definitionKinds;
 
 export type PlayerSpiritAuthoringChanges = Partial<Omit<PlayerSpiritEditableFields, 'secondaryRole'>> & {
   secondaryRole?: BattleBehavior | null;
@@ -139,15 +255,6 @@ export type BattleMonsterAuthoringValidationResult =
       diagnostics: AuthoringDiagnostic[];
     };
 
-const PLAYER_STRING_FIELDS = ['name', 'accent', 'shortDescription', 'battleStyle', 'playTip'] as const;
-const PLAYER_NUMBER_FIELDS = ['maxHp', 'physicalAttack', 'physicalDefense', 'magicAttack', 'magicDefense', 'speed'] as const;
-const ENEMY_STRING_FIELDS = ['name'] as const;
-const ENEMY_NUMBER_FIELDS = ['level', 'baseHp'] as const;
-const COEFFICIENT_FIELDS = ['physicalAttack', 'physicalDefense', 'magicAttack', 'magicDefense', 'speed'] as const;
-const BATTLE_BEHAVIORS: readonly BattleBehavior[] = ['attack', 'protect', 'recover', 'energy'];
-const ROWS: readonly Row[] = ['front', 'back'];
-const MONSTER_CATEGORIES: readonly MonsterDefinition['category'][] = ['minor', 'elite', 'boss'];
-const MONSTER_ROLES: readonly MonsterRole[] = ['warrior', 'shooter', 'mage'];
 const CANDIDATE_FIELDS = new Set(['kind', 'id', 'changes']);
 const PLAYER_EDITABLE_FIELDS = new Set<string>(BATTLE_MONSTER_AUTHORING_CONTRACT.definitionKinds.playerSpirit.editableFields);
 const PLAYER_READ_ONLY_FIELDS = new Set<string>(BATTLE_MONSTER_AUTHORING_CONTRACT.definitionKinds.playerSpirit.readOnlyFields);
@@ -246,39 +353,54 @@ function diagnostic(code: AuthoringDiagnosticCode, path: string, message: string
   return { severity: 'error', code, path, message };
 }
 
-function validateString(value: unknown, path: string, diagnostics: AuthoringDiagnostic[]): value is string {
-  if (typeof value === 'string') return true;
-  diagnostics.push(diagnostic('INVALID_TYPE', path, 'Expected a string.'));
-  return false;
-}
-
-function validateNumber(value: unknown, path: string, diagnostics: AuthoringDiagnostic[]): value is number {
-  if (typeof value !== 'number') {
-    diagnostics.push(diagnostic('INVALID_TYPE', path, 'Expected a number.'));
-    return false;
-  }
-  if (!Number.isFinite(value)) {
-    diagnostics.push(diagnostic('NON_FINITE_NUMBER', path, 'Expected a finite number.'));
-    return false;
-  }
-  return true;
-}
-
-function validateEnum<T extends string>(
+function validateScalarField(
   value: unknown,
-  allowed: readonly T[],
+  schema: BattleAuthoringScalarFieldSchema,
   path: string,
   diagnostics: AuthoringDiagnostic[]
-): value is T {
+): boolean {
+  if (value === null && (schema.optional || schema.nullable)) return true;
+  if (schema.type === 'string') {
+    if (typeof value === 'string') return true;
+    diagnostics.push(diagnostic('INVALID_TYPE', path, 'Expected a string.'));
+    return false;
+  }
+  if (schema.type === 'number') {
+    if (typeof value !== 'number') {
+      diagnostics.push(diagnostic('INVALID_TYPE', path, 'Expected a number.'));
+      return false;
+    }
+    if (schema.finite && !Number.isFinite(value)) {
+      diagnostics.push(diagnostic('NON_FINITE_NUMBER', path, 'Expected a finite number.'));
+      return false;
+    }
+    return true;
+  }
   if (typeof value !== 'string') {
     diagnostics.push(diagnostic('INVALID_TYPE', path, 'Expected a string enum value.'));
     return false;
   }
-  if (!allowed.includes(value as T)) {
-    diagnostics.push(diagnostic('INVALID_ENUM_VALUE', path, `Expected one of: ${allowed.join(', ')}.`));
+  if (!schema.values.includes(value)) {
+    diagnostics.push(diagnostic('INVALID_ENUM_VALUE', path, `Expected one of: ${schema.values.join(', ')}.`));
     return false;
   }
   return true;
+}
+
+function validateScalarFieldsByType(
+  changes: Record<string, unknown>,
+  schema: Readonly<Record<string, BattleAuthoringFieldSchema>>,
+  type: BattleAuthoringScalarFieldSchema['type'],
+  diagnostics: AuthoringDiagnostic[],
+  validated: Record<string, unknown>
+) {
+  for (const [field, fieldSchema] of Object.entries(schema)) {
+    if (fieldSchema.type !== type || !hasOwn(changes, field)) continue;
+    const value = changes[field];
+    if (validateScalarField(value, fieldSchema, `changes.${field}`, diagnostics)) {
+      validated[field] = value;
+    }
+  }
 }
 
 function rejectUnsupportedFields(
@@ -298,83 +420,57 @@ function rejectUnsupportedFields(
 }
 
 function validatePlayerChanges(changes: Record<string, unknown>, diagnostics: AuthoringDiagnostic[]) {
-  const validated: PlayerSpiritAuthoringChanges = {};
+  const validated: Record<string, unknown> = {};
   rejectUnsupportedFields(changes, PLAYER_EDITABLE_FIELDS, PLAYER_READ_ONLY_FIELDS, diagnostics);
 
-  for (const field of PLAYER_STRING_FIELDS) {
-    if (!hasOwn(changes, field)) continue;
-    const value = changes[field];
-    if (validateString(value, `changes.${field}`, diagnostics)) validated[field] = value;
-  }
-  for (const field of PLAYER_NUMBER_FIELDS) {
-    if (!hasOwn(changes, field)) continue;
-    const value = changes[field];
-    if (validateNumber(value, `changes.${field}`, diagnostics)) validated[field] = value;
-  }
-  if (hasOwn(changes, 'primaryRole') && validateEnum(changes.primaryRole, BATTLE_BEHAVIORS, 'changes.primaryRole', diagnostics)) {
-    validated.primaryRole = changes.primaryRole;
-  }
-  if (hasOwn(changes, 'secondaryRole')) {
-    if (changes.secondaryRole === null) validated.secondaryRole = null;
-    else if (validateEnum(changes.secondaryRole, BATTLE_BEHAVIORS, 'changes.secondaryRole', diagnostics)) {
-      validated.secondaryRole = changes.secondaryRole;
-    }
-  }
-  if (hasOwn(changes, 'defaultPosition') && validateEnum(changes.defaultPosition, ROWS, 'changes.defaultPosition', diagnostics)) {
-    validated.defaultPosition = changes.defaultPosition;
-  }
-  return validated;
+  validateScalarFieldsByType(changes, PLAYER_SPIRIT_AUTHORING_FIELD_SCHEMA, 'string', diagnostics, validated);
+  validateScalarFieldsByType(changes, PLAYER_SPIRIT_AUTHORING_FIELD_SCHEMA, 'number', diagnostics, validated);
+  validateScalarFieldsByType(changes, PLAYER_SPIRIT_AUTHORING_FIELD_SCHEMA, 'enum', diagnostics, validated);
+  return validated as PlayerSpiritAuthoringChanges;
 }
 
-function validateCoefficients(value: unknown, diagnostics: AuthoringDiagnostic[]) {
+function validateCoefficients(
+  value: unknown,
+  schema: BattleAuthoringObjectFieldSchema,
+  diagnostics: AuthoringDiagnostic[]
+) {
   if (!isRecord(value)) {
     diagnostics.push(diagnostic('INVALID_TYPE', 'changes.coefficients', 'Expected an object.'));
     return null;
   }
 
-  const validated: Partial<MonsterDefinition['coefficients']> = {};
+  const validated: Record<string, number> = {};
   for (const field of Object.keys(value)) {
-    if (!COEFFICIENT_FIELDS.includes(field as typeof COEFFICIENT_FIELDS[number])) {
+    if (!hasOwn(schema.fields, field)) {
       diagnostics.push(diagnostic('UNSUPPORTED_FIELD', `changes.coefficients.${field}`, `Coefficient '${field}' is not supported.`));
     }
   }
-  for (const field of COEFFICIENT_FIELDS) {
+  for (const [field, fieldSchema] of Object.entries(schema.fields)) {
     if (!hasOwn(value, field)) continue;
     const coefficient = value[field];
-    if (validateNumber(coefficient, `changes.coefficients.${field}`, diagnostics)) validated[field] = coefficient;
+    if (validateScalarField(coefficient, fieldSchema, `changes.coefficients.${field}`, diagnostics)) {
+      validated[field] = coefficient as number;
+    }
   }
-  return validated;
+  return validated as Partial<MonsterDefinition['coefficients']>;
 }
 
 function validateEnemyChanges(changes: Record<string, unknown>, diagnostics: AuthoringDiagnostic[]) {
-  const validated: EnemyMonsterAuthoringChanges = {};
+  const validated: Record<string, unknown> = {};
   rejectUnsupportedFields(changes, ENEMY_EDITABLE_FIELDS, ENEMY_READ_ONLY_FIELDS, diagnostics);
 
-  for (const field of ENEMY_STRING_FIELDS) {
-    if (!hasOwn(changes, field)) continue;
-    const value = changes[field];
-    if (validateString(value, `changes.${field}`, diagnostics)) validated[field] = value;
-  }
-  for (const field of ENEMY_NUMBER_FIELDS) {
-    if (!hasOwn(changes, field)) continue;
-    const value = changes[field];
-    if (validateNumber(value, `changes.${field}`, diagnostics)) validated[field] = value;
-  }
-  if (hasOwn(changes, 'category') && validateEnum(changes.category, MONSTER_CATEGORIES, 'changes.category', diagnostics)) {
-    validated.category = changes.category;
-  }
-  if (hasOwn(changes, 'role')) {
-    if (changes.role === null) validated.role = null;
-    else if (validateEnum(changes.role, MONSTER_ROLES, 'changes.role', diagnostics)) validated.role = changes.role;
-  }
-  if (hasOwn(changes, 'defaultPosition') && validateEnum(changes.defaultPosition, ROWS, 'changes.defaultPosition', diagnostics)) {
-    validated.defaultPosition = changes.defaultPosition;
-  }
+  validateScalarFieldsByType(changes, ENEMY_MONSTER_AUTHORING_FIELD_SCHEMA, 'string', diagnostics, validated);
+  validateScalarFieldsByType(changes, ENEMY_MONSTER_AUTHORING_FIELD_SCHEMA, 'number', diagnostics, validated);
+  validateScalarFieldsByType(changes, ENEMY_MONSTER_AUTHORING_FIELD_SCHEMA, 'enum', diagnostics, validated);
   if (hasOwn(changes, 'coefficients')) {
-    const coefficients = validateCoefficients(changes.coefficients, diagnostics);
+    const coefficients = validateCoefficients(
+      changes.coefficients,
+      ENEMY_MONSTER_AUTHORING_FIELD_SCHEMA.coefficients,
+      diagnostics
+    );
     if (coefficients) validated.coefficients = coefficients;
   }
-  return validated;
+  return validated as EnemyMonsterAuthoringChanges;
 }
 
 export function validateBattleMonsterAuthoringUpdate(candidate: unknown): BattleMonsterAuthoringValidationResult {

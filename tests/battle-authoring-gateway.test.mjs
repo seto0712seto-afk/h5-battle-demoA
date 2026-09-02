@@ -131,6 +131,26 @@ test('health, contract and definition reads expose DTOs with the correct per-sou
   assert.deepEqual(health.body.supportedKinds, ['player-spirit', 'enemy']);
   assert.equal(contract.response.status, 200);
   assert.deepEqual(contract.body.contract, authoringContract.BATTLE_MONSTER_AUTHORING_CONTRACT);
+  assert.deepEqual(
+    Object.keys(contract.body.contract.definitionKinds.playerSpirit.fieldSchema),
+    contract.body.contract.definitionKinds.playerSpirit.editableFields
+  );
+  assert.deepEqual(
+    Object.keys(contract.body.contract.definitionKinds.enemyMonster.fieldSchema),
+    contract.body.contract.definitionKinds.enemyMonster.editableFields
+  );
+  assert.deepEqual(
+    contract.body.contract.definitionKinds.playerSpirit.fieldSchema.primaryRole.values,
+    ['attack', 'protect', 'recover', 'energy']
+  );
+  assert.deepEqual(
+    contract.body.contract.definitionKinds.enemyMonster.fieldSchema.coefficients.fields.speed,
+    { type: 'number', finite: true, optional: false, nullable: false }
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(contract.body.contract)),
+    contract.body.contract
+  );
   assert.equal(players.body.resourceKind, 'player-spirit');
   assert.equal(players.body.kind, 'playerSpirit');
   assert.equal(players.body.sourceRevision, playerSource.snapshot.revision);

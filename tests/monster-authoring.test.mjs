@@ -18,24 +18,23 @@ after(async () => {
   await server?.close();
 });
 
-test('S4B-1 publishes an explicit machine-readable allowlist', () => {
-  assert.deepEqual(authoring.BATTLE_MONSTER_AUTHORING_CONTRACT, {
-    version: 'S4B-1',
-    definitionKinds: {
-      playerSpirit: {
-        editableFields: [
-          'name', 'primaryRole', 'secondaryRole', 'maxHp', 'physicalAttack', 'physicalDefense',
-          'magicAttack', 'magicDefense', 'speed', 'accent', 'defaultPosition', 'shortDescription',
-          'battleStyle', 'playTip'
-        ],
-        readOnlyFields: ['id', 'skillIds']
-      },
-      enemyMonster: {
-        editableFields: ['name', 'level', 'category', 'role', 'defaultPosition', 'coefficients', 'baseHp'],
-        readOnlyFields: ['id', 'skills', 'actionCycle', 'temporaryPowerResponse']
-      }
-    }
-  });
+test('S4B-1 preserves its explicit editable and read-only field contract', () => {
+  const { playerSpirit, enemyMonster } = authoring.BATTLE_MONSTER_AUTHORING_CONTRACT.definitionKinds;
+  assert.equal(authoring.BATTLE_MONSTER_AUTHORING_CONTRACT.version, 'S4B-1');
+  assert.deepEqual(playerSpirit.editableFields, [
+    'name', 'primaryRole', 'secondaryRole', 'maxHp', 'physicalAttack', 'physicalDefense',
+    'magicAttack', 'magicDefense', 'speed', 'accent', 'defaultPosition', 'shortDescription',
+    'battleStyle', 'playTip'
+  ]);
+  assert.deepEqual(playerSpirit.readOnlyFields, ['id', 'skillIds']);
+  assert.deepEqual(
+    enemyMonster.editableFields,
+    ['name', 'level', 'category', 'role', 'defaultPosition', 'coefficients', 'baseHp']
+  );
+  assert.deepEqual(
+    enemyMonster.readOnlyFields,
+    ['id', 'skills', 'actionCycle', 'temporaryPowerResponse']
+  );
 });
 
 test('authoring DTOs are JSON-safe detached views of canonical definitions', () => {
