@@ -84,7 +84,7 @@ const RESOURCE_KIND_BY_PATH = {
   '/v1/definitions/enemy': 'enemy'
 } as const;
 
-const BATTLE_AUTHORING_GATEWAY_BROWSER_READ_ORIGINS = new Set([
+const BATTLE_AUTHORING_GATEWAY_BROWSER_ORIGINS = new Set([
   'http://127.0.0.1:5174',
   'http://127.0.0.1:4175'
 ]);
@@ -94,6 +94,8 @@ const BATTLE_AUTHORING_GATEWAY_BROWSER_READ_PATHS = new Set([
   '/v1/contract',
   ...Object.keys(RESOURCE_KIND_BY_PATH)
 ]);
+
+const BATTLE_AUTHORING_GATEWAY_UPDATE_PATH = '/v1/updates';
 
 const OPERATIONAL_MESSAGES: Readonly<Record<string, string>> = {
   STALE_SOURCE: 'Canonical source revision is stale.',
@@ -300,6 +302,50 @@ function methodNotAllowed(request: IncomingMessage, response: ServerResponse, al
   }, { Allow: allowed });
 }
 
+function browserRequestFailure(
+  request: IncomingMessage,
+  response: ServerResponse,
+  reason: string,
+  code: string,
+  message: string
+): void {
+  request.resume();
+  gatewayFailure(
+    response,
+    403,
+    reason,
+    'not-modified',
+    [envelopeDiagnostic(code, '$', message)]
+  );
+}
+
+function requestedCorsHeaders(request: IncomingMessage): string[] | null {
+  const value = request.headers['access-control-request-headers'];
+  if (value === undefined) return [];
+  const headers = value.split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean);
+  return headers.every((header) => header === 'content-type') ? headers : null;
+}
+
+function handleBrowserUpdatePreflight(request: IncomingMessage, response: ServerResponse): void {
+  const requestedHeaders = requestedCorsHeaders(request);
+  if (request.headers['access-control-request-method'] !== 'POST' || requestedHeaders === null) {
+    return browserRequestFailure(
+      request,
+      response,
+      'browser-preflight-forbidden',
+      'BROWSER_PREFLIGHT_FORBIDDEN',
+      'Browser preflight does not match the permitted authoring update request.'
+    );
+  }
+  response.writeHead(204, {
+    'Cache-Control': 'no-store',
+    'Access-Control-Allow-Methods': 'POST',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers'
+  });
+  response.end();
+}
+
 function createAuthoringOperationQueue() {
   let tail: Promise<void> = Promise.resolve();
   return async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -316,25 +362,33 @@ export function createBattleAuthoringGatewayServer(adapter: BattleAuthoringGatew
       const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
       const origin = request.headers.origin;
       if (origin !== undefined) {
-        const isAllowedRead = request.method === 'GET'
-          && BATTLE_AUTHORING_GATEWAY_BROWSER_READ_PATHS.has(pathname)
-          && BATTLE_AUTHORING_GATEWAY_BROWSER_READ_ORIGINS.has(origin);
-        if (!isAllowedRead) {
-          request.resume();
-          return gatewayFailure(
+        if (!BATTLE_AUTHORING_GATEWAY_BROWSER_ORIGINS.has(origin)) {
+          return browserRequestFailure(
+            request,
             response,
-            403,
             'browser-origin-forbidden',
-            'not-modified',
-            [envelopeDiagnostic(
-              'BROWSER_ORIGIN_FORBIDDEN',
-              '$',
-              'Browser origin is not permitted for this authoring operation.'
-            )]
+            'BROWSER_ORIGIN_FORBIDDEN',
+            'Browser origin is not permitted for this authoring operation.'
           );
         }
         response.setHeader('Access-Control-Allow-Origin', origin);
         response.setHeader('Vary', 'Origin');
+        const isAllowedRead = request.method === 'GET'
+          && BATTLE_AUTHORING_GATEWAY_BROWSER_READ_PATHS.has(pathname);
+        const isAllowedUpdate = request.method === 'POST'
+          && pathname === BATTLE_AUTHORING_GATEWAY_UPDATE_PATH;
+        if (request.method === 'OPTIONS' && pathname === BATTLE_AUTHORING_GATEWAY_UPDATE_PATH) {
+          return handleBrowserUpdatePreflight(request, response);
+        }
+        if (!isAllowedRead && !isAllowedUpdate) {
+          return browserRequestFailure(
+            request,
+            response,
+            'browser-operation-forbidden',
+            'BROWSER_OPERATION_FORBIDDEN',
+            'Browser method and route are not permitted for authoring.'
+          );
+        }
       }
 
       if (pathname === '/v1/health') {
@@ -382,7 +436,7 @@ export function createBattleAuthoringGatewayServer(adapter: BattleAuthoringGatew
         });
       }
 
-      if (pathname === '/v1/updates') {
+      if (pathname === BATTLE_AUTHORING_GATEWAY_UPDATE_PATH) {
         if (request.method !== 'POST') return methodNotAllowed(request, response, 'POST');
         const body = await readJsonBody(request);
         if (!body.ok) {

@@ -74,12 +74,21 @@ async function requestJson(gateway, pathname, init) {
   return { response, body: await response.json() };
 }
 
-async function postUpdate(gateway, body) {
+async function postUpdate(gateway, body, origin, contentType = 'application/json') {
+  const headers = { 'Content-Type': contentType };
+  if (origin !== undefined) headers.Origin = origin;
   return requestJson(gateway, '/v1/updates', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body)
   });
+}
+
+function assertReadableCors(response, origin) {
+  assert.equal(response.headers.get('access-control-allow-origin'), origin);
+  assert.equal(response.headers.get('vary'), 'Origin');
+  assert.notEqual(response.headers.get('access-control-allow-origin'), '*');
+  assert.equal(response.headers.get('access-control-allow-credentials'), null);
 }
 
 function definition(body, id) {
@@ -211,7 +220,173 @@ test('non-allowlisted browser origins are rejected without wildcard or reflectio
   }
 });
 
-test('every Origin-bearing update is rejected before any canonical writer adapter is called', async () => {
+test('allowed local Aries origins receive only the minimal update preflight permission', async () => {
+  const fixture = await createFixture();
+  const { gateway } = await startFixtureGateway(fixture);
+
+  for (const origin of ['http://127.0.0.1:5174', 'http://127.0.0.1:4175']) {
+    const response = await fetch(`${gateway.url}/v1/updates`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: origin,
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'content-type'
+      }
+    });
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get('access-control-allow-origin'), origin);
+    assert.equal(response.headers.get('access-control-allow-methods'), 'POST');
+    assert.equal(response.headers.get('access-control-allow-headers'), 'Content-Type');
+    assert.equal(
+      response.headers.get('vary'),
+      'Origin, Access-Control-Request-Method, Access-Control-Request-Headers'
+    );
+    assert.equal(response.headers.get('access-control-allow-credentials'), null);
+    assert.notEqual(response.headers.get('access-control-allow-origin'), '*');
+    assert.notEqual(response.headers.get('access-control-allow-methods'), '*');
+    assert.notEqual(response.headers.get('access-control-allow-headers'), '*');
+  }
+});
+
+test('invalid update preflights never receive method or header permission', async () => {
+  const fixture = await createFixture();
+  const { gateway } = await startFixtureGateway(fixture);
+  const cases = [
+    {
+      pathname: '/v1/updates',
+      origin: 'http://localhost:5174',
+      method: 'POST',
+      headers: 'content-type'
+    },
+    {
+      pathname: '/v1/updates',
+      origin: 'http://127.0.0.1:5174',
+      method: 'PUT',
+      headers: 'content-type'
+    },
+    {
+      pathname: '/v1/updates',
+      origin: 'http://127.0.0.1:5174',
+      method: 'DELETE',
+      headers: 'content-type'
+    },
+    {
+      pathname: '/v1/updates',
+      origin: 'http://127.0.0.1:5174',
+      method: 'POST',
+      headers: 'content-type, x-authoring-token'
+    },
+    {
+      pathname: '/v1/contract',
+      origin: 'http://127.0.0.1:5174',
+      method: 'POST',
+      headers: 'content-type'
+    }
+  ];
+
+  for (const entry of cases) {
+    const { response, body } = await requestJson(gateway, entry.pathname, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: entry.origin,
+        'Access-Control-Request-Method': entry.method,
+        'Access-Control-Request-Headers': entry.headers
+      }
+    });
+    assert.equal(response.status, 403);
+    assert.equal(body.error.sourceState, 'not-modified');
+    assert.equal(response.headers.get('access-control-allow-methods'), null);
+    assert.equal(response.headers.get('access-control-allow-headers'), null);
+    assert.equal(response.headers.get('access-control-allow-credentials'), null);
+  }
+});
+
+test('allowed browser origins perform real Player and Enemy writes through the existing fixture adapter', async () => {
+  const fixture = await createFixture();
+  const { gateway } = await startFixtureGateway(fixture);
+  const playerOrigin = 'http://127.0.0.1:5174';
+  const enemyOrigin = 'http://127.0.0.1:4175';
+  const playersBefore = (await requestJson(gateway, '/v1/definitions/player-spirit')).body;
+  const enemiesBefore = (await requestJson(gateway, '/v1/definitions/enemy')).body;
+
+  const player = await postUpdate(gateway, {
+    kind: 'playerSpirit',
+    id: 'P01',
+    sourceRevision: playersBefore.sourceRevision,
+    changes: { name: 'Browser Player Write', maxHp: 457 }
+  }, playerOrigin);
+  assert.equal(player.response.status, 200);
+  assert.equal(player.body.operation, 'updated');
+  assert.equal(player.body.definition.editable.name, 'Browser Player Write');
+  assertReadableCors(player.response, playerOrigin);
+
+  const enemy = await postUpdate(gateway, {
+    kind: 'enemyMonster',
+    id: 'FORGE_GRUNT_WARRIOR',
+    sourceRevision: enemiesBefore.sourceRevision,
+    changes: { name: 'Browser Enemy Write', coefficients: { speed: 1.32 } }
+  }, enemyOrigin, 'application/json; charset=utf-8');
+  assert.equal(enemy.response.status, 200);
+  assert.equal(enemy.body.operation, 'updated');
+  assert.equal(enemy.body.definition.editable.name, 'Browser Enemy Write');
+  assertReadableCors(enemy.response, enemyOrigin);
+
+  const noOp = await postUpdate(gateway, {
+    kind: 'enemyMonster',
+    id: 'FORGE_GRUNT_WARRIOR',
+    sourceRevision: enemy.body.sourceRevision,
+    changes: { name: 'Browser Enemy Write', coefficients: { speed: 1.32 } }
+  }, enemyOrigin, 'application/json; charset=utf-8');
+  assert.equal(noOp.response.status, 200);
+  assert.equal(noOp.body.operation, 'not-modified');
+  assertReadableCors(noOp.response, enemyOrigin);
+
+  const playersAfter = (await requestJson(gateway, '/v1/definitions/player-spirit')).body;
+  const enemiesAfter = (await requestJson(gateway, '/v1/definitions/enemy')).body;
+  assert.equal(definition(playersAfter, 'P01').editable.name, 'Browser Player Write');
+  assert.equal(definition(enemiesAfter, 'FORGE_GRUNT_WARRIOR').editable.name, 'Browser Enemy Write');
+});
+
+test('allowed browser origins can read structured validation, unknown-definition and stale failures', async () => {
+  const fixture = await createFixture();
+  const { gateway } = await startFixtureGateway(fixture);
+  const origin = 'http://127.0.0.1:5174';
+  const source = (await requestJson(gateway, '/v1/definitions/enemy')).body;
+
+  const validation = await postUpdate(gateway, {
+    kind: 'enemyMonster',
+    id: 'FORGE_GRUNT_WARRIOR',
+    sourceRevision: source.sourceRevision,
+    changes: { skills: [] }
+  }, origin);
+  assert.equal(validation.response.status, 422);
+  assert.equal(validation.body.error.diagnostics[0].code, 'READ_ONLY_FIELD');
+  assertReadableCors(validation.response, origin);
+
+  const unknown = await postUpdate(gateway, {
+    kind: 'enemyMonster',
+    id: 'ENEMY_404',
+    sourceRevision: source.sourceRevision,
+    changes: { name: 'x' }
+  }, origin);
+  assert.equal(unknown.response.status, 404);
+  assert.equal(unknown.body.error.diagnostics[0].code, 'UNKNOWN_DEFINITION');
+  assertReadableCors(unknown.response, origin);
+
+  await writeFile(fixture.enemySourcePath, `${await readFile(fixture.enemySourcePath, 'utf8')}\n// browser stale\n`, 'utf8');
+  const stale = await postUpdate(gateway, {
+    kind: 'enemyMonster',
+    id: 'FORGE_GRUNT_WARRIOR',
+    sourceRevision: source.sourceRevision,
+    changes: { name: 'stale' }
+  }, origin);
+  assert.equal(stale.response.status, 409);
+  assert.equal(stale.body.error.reason, 'stale-source');
+  assert.equal(stale.body.error.diagnostics[0].code, 'STALE_SOURCE');
+  assertReadableCors(stale.response, origin);
+});
+
+test('disallowed Origin updates are rejected before any writer adapter is called', async () => {
   const fixture = await createFixture();
   let playerWrites = 0;
   let enemyWrites = 0;
@@ -232,7 +407,18 @@ test('every Origin-bearing update is rejected before any canonical writer adapte
     sourceRevision: 'revision'
   });
 
-  for (const origin of ['http://127.0.0.1:5174', 'http://127.0.0.1:4175', 'https://attacker.example']) {
+  const origins = [
+    'http://localhost:5174',
+    'http://192.168.1.10:4175',
+    'http://127.0.0.1:9999',
+    'https://127.0.0.1:4175',
+    'null',
+    'http://127.0.0.1:4175.attacker.example',
+    'http://127.0.0.1.evil.test:4175',
+    'http://127.0.0.1:41750',
+    'http://[::1]:4175'
+  ];
+  for (const origin of origins) {
     const { response, body } = await requestJson(gateway, '/v1/updates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Origin: origin },
@@ -246,6 +432,47 @@ test('every Origin-bearing update is rejected before any canonical writer adapte
   }
   assert.equal(playerWrites, 0);
   assert.equal(enemyWrites, 0);
+});
+
+test('allowed Origin wrong route, method and media type are rejected before writer adapters', async () => {
+  const fixture = await createFixture();
+  let writes = 0;
+  const { gateway } = await startFixtureGateway(fixture, {
+    writePlayerSpirit: async () => {
+      writes += 1;
+      throw new Error('forbidden browser request reached writer');
+    },
+    writeEnemy: async () => {
+      writes += 1;
+      throw new Error('forbidden browser request reached writer');
+    }
+  });
+  const origin = 'http://127.0.0.1:5174';
+  const body = JSON.stringify({
+    kind: 'playerSpirit', id: 'P01', changes: { name: 'x' }, sourceRevision: 'revision'
+  });
+  const cases = [
+    ['/v1/contract', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body }],
+    ['/v1/updates', { method: 'PUT', headers: { Origin: origin, 'Content-Type': 'application/json' }, body }],
+    ['/v1/updates', { method: 'PATCH', headers: { Origin: origin, 'Content-Type': 'application/json' }, body }],
+    ['/v1/updates', { method: 'DELETE', headers: { Origin: origin } }]
+  ];
+  for (const [pathname, init] of cases) {
+    const { response, body: failure } = await requestJson(gateway, pathname, init);
+    assert.equal(response.status, 403);
+    assert.equal(failure.error.diagnostics[0].code, 'BROWSER_OPERATION_FORBIDDEN');
+    assertReadableCors(response, origin);
+  }
+
+  const mediaType = await requestJson(gateway, '/v1/updates', {
+    method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'text/plain' },
+    body
+  });
+  assert.equal(mediaType.response.status, 415);
+  assert.equal(mediaType.body.error.diagnostics[0].code, 'UNSUPPORTED_MEDIA_TYPE');
+  assertReadableCors(mediaType.response, origin);
+  assert.equal(writes, 0);
 });
 
 test('Player Spirit HTTP update writes the fixture and returns the disk-reread DTO and revision', async () => {
@@ -474,13 +701,14 @@ test('gateway preserves original-restored and rollback-failure unknown recovery 
       runningGateways.add(gateway);
       const result = await postUpdate(gateway, {
         kind: 'enemyMonster', id: 'FORGE_GRUNT_WARRIOR', changes: { name: 'x' }, sourceRevision: 'revision'
-      });
+      }, 'http://127.0.0.1:4175');
       assert.equal(result.response.status, 500);
       assert.equal(result.body.error.sourceState, entry.expectedState);
       assert.deepEqual(result.body.error.diagnostics.map((diagnostic) => diagnostic.code), entry.expectedCodes);
       assert.equal(result.body.error.diagnostics.every((diagnostic) => diagnostic.path === '$source'), true);
       assert.equal(Object.hasOwn(result.body, 'recoveryPath'), false);
       assert.equal(JSON.stringify(result.body).includes(fixture.directory), false);
+      assertReadableCors(result.response, 'http://127.0.0.1:4175');
       runningGateways.delete(gateway);
       await gateway.close();
     });
