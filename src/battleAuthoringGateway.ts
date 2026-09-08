@@ -1,4 +1,5 @@
 import { createBattleAuthoringGatewayAdapter } from './battleAuthoringGatewayAdapter';
+import { writeBattleAuthoringBatch } from './battleAuthoringBatchWriter';
 import {
   BATTLE_AUTHORING_GATEWAY_API_VERSION,
   BATTLE_AUTHORING_GATEWAY_LOOPBACK_HOST,
@@ -13,6 +14,7 @@ export const BATTLE_AUTHORING_GATEWAY_HOST = BATTLE_AUTHORING_GATEWAY_LOOPBACK_H
 export const BATTLE_AUTHORING_GATEWAY_DEFAULT_PORT = 4176;
 
 const productionAdapter = createBattleAuthoringGatewayAdapter({
+  writeBatch: writeBattleAuthoringBatch,
   readPlayerSpirits: readPlayerSpiritAuthoringSource,
   readEnemies: readEnemyMonsterAuthoringSource,
   writePlayerSpirit: writePlayerSpiritAuthoringUpdate,

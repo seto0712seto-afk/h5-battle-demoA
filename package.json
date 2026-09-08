@@ -14,6 +14,7 @@
     "test:enemy-authoring-source-refactor": "node --test tests/enemy-authoring-source-refactor.test.mjs",
     "test:enemy-monster-write-back": "node --test tests/enemy-monster-write-back.test.mjs",
     "test:battle-authoring-gateway": "node --test tests/battle-authoring-gateway.test.mjs",
+    "test:battle-authoring-batch": "node --test tests/battle-authoring-batch.test.mjs",
     "authoring:host": "node scripts/run-battle-authoring-gateway.mjs",
     "simulate:random": "node scripts/simulate-random-dungeon.mjs",
     "simulate:experience": "node scripts/simulate-random-dungeon.mjs --experience=true --runs=1000 --seed=2026072701 --output=../validation-artifacts/random-dungeon-1000-summary.json",

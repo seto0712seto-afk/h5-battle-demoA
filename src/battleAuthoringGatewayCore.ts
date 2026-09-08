@@ -2,6 +2,8 @@ import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { isAbsolute } from 'node:path';
+import { validateBattleAuthoringBatchEnvelope } from './battleAuthoringBatch';
+import type { BattleAuthoringBatchRequest, BattleAuthoringBatchResult } from './battleAuthoringBatch';
 import {
   BATTLE_MONSTER_AUTHORING_CONTRACT
 } from './battleMonsterAuthoring';
@@ -55,6 +57,7 @@ export type BattleAuthoringGatewayWriteResult<TDefinition extends BattleMonsterA
     };
 
 export interface BattleAuthoringGatewayAdapter {
+  writeBatch?(request: BattleAuthoringBatchRequest): Promise<BattleAuthoringBatchResult>;
   readPlayerSpirits(): Promise<BattleAuthoringGatewayReadResult<PlayerSpiritAuthoringDto>>;
   readEnemies(): Promise<BattleAuthoringGatewayReadResult<EnemyMonsterAuthoringDto>>;
   writePlayerSpirit(request: {
@@ -96,6 +99,7 @@ const BATTLE_AUTHORING_GATEWAY_BROWSER_READ_PATHS = new Set([
 ]);
 
 const BATTLE_AUTHORING_GATEWAY_UPDATE_PATH = '/v1/updates';
+const BATTLE_AUTHORING_GATEWAY_BATCH_PATH = '/v1/batch-updates';
 
 const OPERATIONAL_MESSAGES: Readonly<Record<string, string>> = {
   STALE_SOURCE: 'Canonical source revision is stale.',
@@ -376,8 +380,8 @@ export function createBattleAuthoringGatewayServer(adapter: BattleAuthoringGatew
         const isAllowedRead = request.method === 'GET'
           && BATTLE_AUTHORING_GATEWAY_BROWSER_READ_PATHS.has(pathname);
         const isAllowedUpdate = request.method === 'POST'
-          && pathname === BATTLE_AUTHORING_GATEWAY_UPDATE_PATH;
-        if (request.method === 'OPTIONS' && pathname === BATTLE_AUTHORING_GATEWAY_UPDATE_PATH) {
+          && (pathname === BATTLE_AUTHORING_GATEWAY_UPDATE_PATH || pathname === BATTLE_AUTHORING_GATEWAY_BATCH_PATH);
+        if (request.method === 'OPTIONS' && (pathname === BATTLE_AUTHORING_GATEWAY_UPDATE_PATH || pathname === BATTLE_AUTHORING_GATEWAY_BATCH_PATH)) {
           return handleBrowserUpdatePreflight(request, response);
         }
         if (!isAllowedRead && !isAllowedUpdate) {
@@ -433,6 +437,28 @@ export function createBattleAuthoringGatewayServer(adapter: BattleAuthoringGatew
           kind: resourceKind === 'player-spirit' ? 'playerSpirit' : 'enemyMonster',
           sourceRevision: result.sourceRevision,
           definitions: result.definitions
+        });
+      }
+
+      if (pathname === BATTLE_AUTHORING_GATEWAY_BATCH_PATH) {
+        if (request.method !== 'POST') return methodNotAllowed(request, response, 'POST');
+        const body = await readJsonBody(request);
+        if (!body.ok) return gatewayFailure(response, body.statusCode, body.reason, 'not-modified', [body.diagnostic]);
+        const envelope = validateBattleAuthoringBatchEnvelope(body.value);
+        if (!envelope.ok) return gatewayFailure(response, 400, envelope.reason, 'not-modified', envelope.diagnostics);
+        if (!adapter.writeBatch) return gatewayFailure(response, 503, 'batch-unavailable', 'not-modified', [envelopeDiagnostic('BATCH_UNAVAILABLE', '$', 'Batch authority is not configured.')]);
+        const result = await enqueueAuthoringOperation(() => adapter.writeBatch!(envelope.request));
+        if (!result.ok) {
+          return sendJson(response, writerFailureStatus(result.reason), {
+            ok: false, apiVersion: BATTLE_AUTHORING_GATEWAY_API_VERSION, kind: envelope.request.kind,
+            error: { reason: result.reason, sourceState: result.sourceState, diagnostics: publicDiagnostics(result.diagnostics),
+              recovery: { required: result.sourceState === 'unknown', backupAvailable: result.backupAvailable } }
+          });
+        }
+        return sendJson(response, 200, {
+          ok: true, apiVersion: BATTLE_AUTHORING_GATEWAY_API_VERSION, kind: result.kind,
+          operation: result.sourceState, sourceState: result.sourceState,
+          sourceRevision: result.sourceRevision, definitions: result.definitions
         });
       }
 

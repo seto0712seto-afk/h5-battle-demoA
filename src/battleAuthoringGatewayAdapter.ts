@@ -1,4 +1,5 @@
 import { createEnemyMonsterAuthoringDto } from './battleMonsterAuthoring';
+import type { BattleAuthoringBatchRequest, BattleAuthoringBatchResult } from './battleAuthoringBatch';
 import type {
   EnemyMonsterAuthoringDto,
   PlayerSpiritAuthoringDto
@@ -14,6 +15,7 @@ import type {
 } from './playerSpiritAuthoringWriterCore';
 
 export interface BattleAuthoringGatewayWriterDependencies {
+  writeBatch?(request: BattleAuthoringBatchRequest): Promise<BattleAuthoringBatchResult>;
   readPlayerSpirits(): Promise<PlayerSpiritSourceReadResult>;
   readEnemies(): Promise<EnemyMonsterSourceReadResult>;
   writePlayerSpirit(request: { expectedRevision: string; candidate: unknown }): Promise<PlayerSpiritWriteBackResult>;
@@ -34,6 +36,7 @@ export function createBattleAuthoringGatewayAdapter(
   dependencies: BattleAuthoringGatewayWriterDependencies
 ): BattleAuthoringGatewayAdapter {
   return {
+    ...(dependencies.writeBatch ? { writeBatch: (request: BattleAuthoringBatchRequest) => dependencies.writeBatch!(request) } : {}),
     async readPlayerSpirits() {
       const result = await dependencies.readPlayerSpirits();
       if (!result.ok) return { ok: false, reason: result.reason, diagnostics: diagnostics(result.diagnostics) };

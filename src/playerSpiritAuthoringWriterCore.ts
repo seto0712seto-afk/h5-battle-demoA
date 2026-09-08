@@ -442,7 +442,8 @@ function verifyTransformedSource(
   original: ParsedDataSource,
   transformedText: string,
   id: string,
-  changes: PlayerSpiritAuthoringChanges
+  changes: PlayerSpiritAuthoringChanges,
+  batchChanges?: ReadonlyMap<string, PlayerSpiritAuthoringChanges>
 ): ParsedDataSource {
   let transformed: ParsedDataSource;
   try {
@@ -472,7 +473,8 @@ function verifyTransformedSource(
         writerDiagnostic('SOURCE_TRANSFORM_FAILURE', `SPIRITS[${index}].id`, 'Canonical ID changed unexpectedly.')
       );
     }
-    const expected = before.id === id ? expectedTarget(before.values, changes) : before.values;
+    const patch = batchChanges?.get(before.id) ?? (before.id === id ? changes : undefined);
+    const expected = patch ? expectedTarget(before.values, patch) : before.values;
     if (!sameValue(after.values, expected)) {
       throw new WriterFailure(
         'source-transform-failure',
@@ -494,6 +496,34 @@ async function currentSourceOrFailure(sourcePath: string): Promise<{ text: strin
     );
   }
   return { text, parsed: parseDataSource(sourcePath, text) };
+}
+
+/** In-memory preparation only; the batch authority owns the one filesystem transaction. */
+export function preparePlayerSpiritAuthoringBatch(
+  sourcePath: string,
+  originalText: string,
+  updates: readonly { id: string; changes: PlayerSpiritAuthoringChanges }[]
+) {
+  const original = parseDataSource(sourcePath, originalText);
+  let parsed = original;
+  let text = originalText;
+  const patches = new Map(updates.map((update) => [update.id, update.changes]));
+  let changed = false;
+  for (const update of updates) {
+    const before = parsed.spirits.find((entry) => entry.id === update.id);
+    if (!before) throw new WriterFailure('source-transform-failure',
+      writerDiagnostic('SOURCE_TRANSFORM_FAILURE', 'id', 'Target is absent from the selected source.'));
+    if (sameValue(before.values, expectedTarget(before.values, update.changes))) continue;
+    const transformed = transformPlayerSpirit(text, parsed, update.id, update.changes);
+    parsed = verifyTransformedSource(sourcePath, parsed, transformed.sourceText, update.id, update.changes);
+    text = transformed.sourceText;
+    changed = true;
+  }
+  const verify = (verifiedPath: string, writtenText: string) => snapshotFromParsed(
+    verifiedPath, writtenText,
+    verifyTransformedSource(verifiedPath, original, writtenText, '', {}, patches)
+  );
+  return { changed, transformedSourceText: text, snapshot: verify(sourcePath, text), verifyWrittenSource: verify };
 }
 
 export async function writePlayerSpiritAuthoringUpdateAtPath(

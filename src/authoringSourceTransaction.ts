@@ -52,6 +52,7 @@ export type AuthoringSourceTransactionResult<TSnapshot> =
       reason: AuthoringSourceTransactionFailureReason;
       sourceState: 'not-modified' | 'original-restored' | 'unknown';
       recoveryPath: string | null;
+      backupAvailable: boolean;
       diagnostics: AuthoringSourceTransactionDiagnostic[];
     };
 
@@ -67,7 +68,8 @@ function failure<TSnapshot>(
   reason: AuthoringSourceTransactionFailureReason,
   diagnostics: AuthoringSourceTransactionDiagnostic | AuthoringSourceTransactionDiagnostic[],
   sourceState: 'not-modified' | 'original-restored' | 'unknown' = 'not-modified',
-  recoveryPath: string | null = null
+  recoveryPath: string | null = null,
+  backupAvailable = false
 ): AuthoringSourceTransactionResult<TSnapshot> {
   return {
     ok: false,
@@ -75,6 +77,7 @@ function failure<TSnapshot>(
     reason,
     sourceState,
     recoveryPath,
+    backupAvailable,
     diagnostics: Array.isArray(diagnostics) ? diagnostics : [diagnostics]
   };
 }
@@ -98,6 +101,16 @@ async function removeIfPresent(path: string): Promise<void> {
     await unlink(path);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}
+
+// A recorded recovery path may have been consumed by rollback rename.
+// Only a readable backup matching the original source is confirmed usable.
+async function recoveryBackupAvailable(path: string, originalSourceText: string): Promise<boolean> {
+  try {
+    return await readFile(path, 'utf8') === originalSourceText;
+  } catch {
+    return false;
   }
 }
 
@@ -171,7 +184,8 @@ export async function runAuthoringSourceTransaction<TSnapshot>(
             )
           ],
           'unknown',
-          backupPath
+          backupPath,
+          await recoveryBackupAvailable(backupPath, request.originalSourceText)
         );
       }
     }
@@ -200,7 +214,8 @@ export async function runAuthoringSourceTransaction<TSnapshot>(
             )
           ],
           'unknown',
-          backupPath
+          backupPath,
+          await recoveryBackupAvailable(backupPath, request.originalSourceText)
         );
       }
     }

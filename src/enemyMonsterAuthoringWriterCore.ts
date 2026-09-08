@@ -529,7 +529,8 @@ function verifyTransformedSource(
   original: ParsedEnemySource,
   sourceText: string,
   id: string,
-  changes: EnemyMonsterAuthoringChanges
+  changes: EnemyMonsterAuthoringChanges,
+  batchChanges?: ReadonlyMap<string, EnemyMonsterAuthoringChanges>
 ): ParsedEnemySource {
   let transformed: ParsedEnemySource;
   try {
@@ -562,8 +563,9 @@ function verifyTransformedSource(
   }
 
   for (const definitionId of Object.keys(original.definitions)) {
-    const expected = definitionId === id
-      ? expectedDefinition(original.definitions[definitionId], changes)
+    const patch = batchChanges?.get(definitionId) ?? (definitionId === id ? changes : undefined);
+    const expected = patch
+      ? expectedDefinition(original.definitions[definitionId], patch)
       : original.definitions[definitionId];
     if (!sameSemanticValue(expected, transformed.definitions[definitionId])) {
       throw new WriterFailure(
@@ -592,6 +594,34 @@ async function currentSourceOrFailure(sourcePath: string): Promise<{ text: strin
     );
   }
   return { text, parsed: parseEnemySource(sourcePath, text) };
+}
+
+/** In-memory preparation only; the batch authority owns the one filesystem transaction. */
+export function prepareEnemyMonsterAuthoringBatch(
+  sourcePath: string,
+  originalText: string,
+  updates: readonly { id: string; changes: EnemyMonsterAuthoringChanges }[]
+) {
+  const original = parseEnemySource(sourcePath, originalText);
+  let parsed = original;
+  let text = originalText;
+  const patches = new Map(updates.map((update) => [update.id, update.changes]));
+  let changed = false;
+  for (const update of updates) {
+    const before = parsed.definitions[update.id];
+    if (!before) throw new WriterFailure('source-transform-failure',
+      writerDiagnostic('SOURCE_TRANSFORM_FAILURE', 'id', 'Target is absent from the selected source.'));
+    if (sameSemanticValue(before, expectedDefinition(before, update.changes))) continue;
+    const transformed = transformEnemyDefinition(text, parsed, update.id, update.changes);
+    parsed = verifyTransformedSource(sourcePath, parsed, transformed, update.id, update.changes);
+    text = transformed;
+    changed = true;
+  }
+  const verify = (verifiedPath: string, writtenText: string) => snapshotFromParsed(
+    verifiedPath, writtenText,
+    verifyTransformedSource(verifiedPath, original, writtenText, '', {}, patches)
+  );
+  return { changed, transformedSourceText: text, snapshot: verify(sourcePath, text), verifyWrittenSource: verify };
 }
 
 export async function writeEnemyMonsterAuthoringUpdateAtPath(
