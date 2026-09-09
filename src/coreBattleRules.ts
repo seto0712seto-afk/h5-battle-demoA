@@ -25,7 +25,7 @@ export const CORE_STATUS_RULES = {
     maxStacks: 4,
     temporary: false,
     clearOnBench: true,
-    description: '最多4层；每层使下一次技能威力提高25%，技能完整结算后只消耗1层旧爆发。'
+    description: '每层使下一次技能威力 +25%，最多 4 层。'
   },
   charge: {
     id: 'charge',
@@ -34,14 +34,14 @@ export const CORE_STATUS_RULES = {
     maxStacks: 1,
     temporary: false,
     clearOnBench: true,
-    description: '本回合第一次受到攻击时获得3层爆发并立即移除；若未触发则在本回合结束时移除。'
+    description: '本回合首次受到攻击时获得 3 层【爆发】。'
   },
   regen: {
     id: 'regen',
     name: '回复',
     stackable: false,
     maxStacks: 1,
-    description: '行动开始时恢复 10% 最大生命；同名回复只保留一个，持续时间按持有者的正常行动次数计算。'
+    description: '持有者行动开始时恢复 10% 最大生命。'
   },
   energySaving: {
     id: 'energy-saving',
@@ -50,14 +50,14 @@ export const CORE_STATUS_RULES = {
     maxStacks: 1,
     temporary: false,
     clearOnBench: true,
-    description: '下一次使用技能时，技能自身动态费用结算后降低50%并向下取整，最低0费；支付后移除，离场时清除。'
+    description: '下一次使用技能时，妖力消耗降低 50%。'
   },
   vulnerable: {
     id: 'vulnerable',
     name: '易伤',
     stackable: false,
     maxStacks: 1,
-    description: '受到的最终伤害提高 50%，持续时间按状态持有者的正常行动次数计算。'
+    description: '受到的伤害提高 50%。'
   }
 } as const;
 

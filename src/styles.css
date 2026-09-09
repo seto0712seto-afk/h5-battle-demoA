@@ -750,8 +750,20 @@ button {
   font-size:12px;
   line-height:1.45
 }
-.skill-description {
+.skill-description-block {
+  display:grid;
+  gap:3px;
   line-height:1.55
+}
+.skill-description-block p {
+  margin:0
+}
+.skill-description-block .skill-status-term {
+  color:#2f6fb2;
+  font-weight:900
+}
+.skill-status-description {
+  color:#5d6f80
 }
 .skill-meta-row {
   display:flex;
@@ -2078,6 +2090,9 @@ button {
   font-size:12px
 }
 .swap-skill p {
+  grid-column:1 / -1
+}
+.swap-skill .skill-description-block {
   grid-column:1 / -1
 }
 .swap-skill .skill-meta-row {

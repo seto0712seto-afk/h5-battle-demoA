@@ -6,7 +6,7 @@ import {
   formatPercent,
   hpPercent
 } from './formulas';
-import { skillDescriptionWithStatusDetails, statusDescription } from './skillPresentation';
+import { renderSkillDescription, statusDescription } from './skillPresentation';
 import type { BattleFxEvent, BattleState, Row, RuntimeSpirit, SkillData } from './types';
 
 const PLAYER_POSITIONS: Array<{ label: string; slotIndex: number; row: Row }> = [
@@ -649,7 +649,7 @@ export class BattleUI {
     const card = element('article', 'skill-detail-card');
     card.append(textEl('strong', '', skill.name));
     card.append(this.renderSkillMeta(actor, skill, this.game.getSkillButtonState(skill, actor)));
-    card.append(textEl('p', '', this.skillEffectText(skill)));
+    card.append(renderSkillDescription(skill));
     return card;
   }
 
@@ -695,7 +695,7 @@ export class BattleUI {
       const row = element('div', 'swap-skill');
       row.append(textEl('strong', '', skill.name));
       row.append(this.renderSkillMeta(runtime, skill));
-      row.append(textEl('p', '', this.skillEffectText(skill)));
+      row.append(renderSkillDescription(skill));
       skills.append(row);
     });
     card.append(skills);
@@ -892,10 +892,6 @@ export class BattleUI {
     group.append(element('span', 'mana-icon-cell'));
     group.append(textEl('span', 'mana-icon-more', count === null ? (rawLabel ? label ?? '' : `*${label ?? ''}`) : `*${count}`));
     return group;
-  }
-
-  private skillEffectText(skill: SkillData) {
-    return skillDescriptionWithStatusDetails(skill);
   }
 
   private spiritData(id: string) {
