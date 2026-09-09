@@ -7,7 +7,7 @@ export const BASE_ACTION_SPEED = 40;
 export const SPIRITS: SpiritData[] = [
   {
     id: 'P01',
-    name: '炽刃狐',
+    name: '\u70BD\u5203\u72D01',
     primaryRole: 'attack',
     maxHp: 262,
     physicalAttack: 133,
