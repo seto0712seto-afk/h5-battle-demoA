@@ -565,7 +565,7 @@
           "magicDefense": 1,
           "speed": 0.85
         },
-        "baseHp": 3000,
+        "baseHp": 5000,
         "role": "warrior"
       },
       "readOnly": {

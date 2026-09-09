@@ -474,7 +474,7 @@
         "magicDefense": 1,
         "speed": 0.85
       },
-      "baseHp": 3000,
+      "baseHp": 5000,
       "skills": [
         {
           "skillId": "FORGE_BOSS_HEAVY_SLASH",
