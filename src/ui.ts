@@ -7,7 +7,7 @@ import {
   hpPercent
 } from './formulas';
 import { renderSkillDescription, statusDescription } from './skillPresentation';
-import type { BattleFxEvent, BattleState, Row, RuntimeSpirit, SkillData } from './types';
+import type { BattleFxEvent, BattleState, EnemyBattlePosition, Row, RuntimeSpirit, SkillData } from './types';
 
 const PLAYER_POSITIONS: Array<{ label: string; slotIndex: number; row: Row }> = [
   { label: '2', slotIndex: 0, row: 'back' },
@@ -21,13 +21,13 @@ const PLAYER_POSITIONS: Array<{ label: string; slotIndex: number; row: Row }> = 
 const ENEMY_POSITIONS: Array<{
   label: string;
   row: Row;
-  slotPosition: 'front' | 'back_1' | 'back_2' | null;
+  slotPosition: EnemyBattlePosition | null;
 }> = [
-  { label: '1', row: 'front', slotPosition: null },
+  { label: '1', row: 'front', slotPosition: 'front_1' },
   { label: '2', row: 'back', slotPosition: 'back_1' },
   { label: '3', row: 'front', slotPosition: 'front' },
   { label: '4', row: 'back', slotPosition: null },
-  { label: '5', row: 'front', slotPosition: null },
+  { label: '5', row: 'front', slotPosition: 'front_2' },
   { label: '6', row: 'back', slotPosition: 'back_2' }
 ];
 
@@ -315,6 +315,7 @@ export class BattleUI {
     cell.append(textEl('strong', 'unit-name', enemy.name));
     const identity = element('div', 'growth-row');
     identity.append(textEl('span', 'growth-chip enemy-category-chip', enemy.category === 'boss' ? 'Boss' : enemy.category === 'elite' ? '精英' : '小怪'));
+    if (enemy.element) identity.append(textEl('span', 'growth-chip', `${enemy.element}系`));
     cell.append(identity);
     const cycle = this.game.enemyCycleView(enemy.id);
     if (cycle) {
@@ -741,6 +742,8 @@ export class BattleUI {
     if (runtime.regenTurns > 0 || runtime.freshRegenTurns > 0) growths.push({ label: `回复 ${Math.max(runtime.regenTurns, runtime.freshRegenTurns)}`, detail: statusDescription('regen') });
     if (runtime.shieldValue > 0) growths.push({ label: `护盾 ${runtime.shieldValue}`, detail: '优先吸收受到的伤害；持有者正常行动结束会清除既有护盾。' });
     if (runtime.statuses['energy-saving']) growths.push({ label: '节能', detail: statusDescription('energy-saving') });
+    if (runtime.statuses['shield-guard']) growths.push({ label: `盾阵 ${runtime.statuses['shield-guard'].duration}`, detail: statusDescription('shield-guard') });
+    if (runtime.shieldExtensionTurns > 0) growths.push({ label: `护盾延长 ${runtime.shieldExtensionTurns}`, detail: '当前护盾额外保留的正常行动次数。' });
     Object.entries(runtime.skillPowerGrowth)
       .filter(([, value]) => value > 0)
       .forEach(([skillId, value]) => {

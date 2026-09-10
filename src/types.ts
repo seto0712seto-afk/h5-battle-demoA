@@ -6,11 +6,11 @@ export type Phase = 'running' | 'player-action' | 'target-select' | 'forced-repl
 export type ActionContext = 'normal' | 'extra';
 export type ActionSlotStatus = 'pending' | 'executing' | 'completed' | 'invalid' | 'skipped';
 export type BossId = string;
-export type EnemyBattlePosition = 'front' | 'back_1' | 'back_2';
+export type EnemyBattlePosition = 'front_1' | 'front' | 'front_2' | 'back_1' | 'back_2';
 export type BossPreviewSkillTag = 'single' | 'aoe' | 'status';
 export type ManaGainSource = 'attack_on_hit' | 'hybrid_attack_charge' | 'charge_only' | 'kill_reward' | 'other';
 export type SkillEnhanceCheckTiming = 'confirmation';
-export type BattleBehavior = 'attack' | 'protect' | 'recover' | 'energy';
+export type BattleBehavior = 'attack' | 'protect' | 'recover' | 'energy' | 'support';
 
 export type SkillEnhanceCondition =
   | { type: 'team_mana_at_least'; value: number }
@@ -66,7 +66,10 @@ export interface UnitStats {
 
 export interface SpiritData extends UnitStats {
   id: string;
+  sourceId?: string;
   name: string;
+  element?: string;
+  roleSystem?: 'legacy' | 'concept';
   primaryRole: BattleBehavior;
   secondaryRole?: BattleBehavior;
   skillIds: string[];
@@ -118,9 +121,13 @@ export interface SkillData {
   addRegenTurns?: number;
   selfHealPercent?: number;
   frontHealPercent?: number;
+  lowestHpAllyHealPercent?: number;
   healFlatValue?: number;
   selfHpCostPercent?: number;
   addEnergySaving?: boolean;
+  addShieldGuardTurns?: number;
+  extendShieldDurationActions?: number;
+  requiresTargetShield?: boolean;
   addBossVulnerabilityTurns?: number;
   consecutiveUseCostReduction?: number;
   minimumCost?: number;
@@ -168,6 +175,7 @@ export interface RuntimeShieldInstance {
 export interface BossPreviewSkill {
   id: string;
   name: string;
+  element?: string;
   tags: BossPreviewSkillTag[];
   behaviorCategory: string;
   targetDescription: string;
@@ -180,6 +188,7 @@ export interface BossPreviewSkill {
 
 export interface BossDisplayData {
   displayName: string;
+  element?: string;
   portraitKey?: string;
   shortDescription?: string;
   previewSkills: BossPreviewSkill[];
@@ -188,6 +197,7 @@ export interface BossDisplayData {
 export interface BossData extends UnitStats {
   id: BossId;
   name: string;
+  element?: string;
   display?: BossDisplayData;
 }
 
@@ -225,6 +235,7 @@ export interface RuntimeSpirit {
   freshRegenTurns: number;
   shieldValue: number;
   freshShieldValue: number;
+  shieldExtensionTurns: number;
   shieldInstances: RuntimeShieldInstance[];
   statuses: Record<string, RuntimeStatus>;
 }
@@ -247,6 +258,7 @@ export interface RuntimeEnemy extends BossRuntime, UnitStats {
   id: string;
   definitionId: string;
   name: string;
+  element?: string;
   row: Row;
   position: EnemyBattlePosition;
   category: 'minor' | 'elite' | 'boss';
@@ -348,12 +360,17 @@ export type StageEnemyConfig = BossId | {
   enemyId: BossId;
   position?: EnemyBattlePosition;
   level?: number;
+  instanceName?: string;
+  aiSequenceStartIndex?: number;
+  initialHpRatio?: number;
   overrides?: Partial<BossData>;
 };
 
 export interface StageBattleConfig {
   battleId: string;
   enemies: StageEnemyConfig[];
+  targetRounds?: [number, number];
+  notes?: string[];
 }
 
 export interface StageConfig {

@@ -9,7 +9,7 @@ let coreRules;
 let monsterData;
 
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   ({ BattleGame } = await server.ssrLoadModule('/src/battle.ts'));
   ({ battleSystemConfig } = await server.ssrLoadModule('/src/battleSystems.ts'));
   coreRules = await server.ssrLoadModule('/src/coreBattleRules.ts');
@@ -280,27 +280,25 @@ test('额外行动不回能、不减冷却、不扣状态且不能连续触发',
   assert.equal(manaAfterNormalStart >= 0, true);
 });
 
-test('20260811 十精灵冻结属性与三技能配置一致', () => {
+test('20260824 十六精灵冻结属性与三技能配置一致', () => {
   const config = battleSystemConfig();
   const expected = {
-    P01: [262, 133, 80, 84, 88, 130],
-    P02: [274, 124, 78, 92, 89, 126],
-    P03: [268, 79, 124, 98, 90, 120],
-    P04: [383, 83, 74, 128, 107, 83],
-    P05: [371, 81, 71, 128, 118, 82],
-    P06: [385, 87, 73, 125, 114, 77],
-    P07: [209, 76, 126, 104, 104, 124],
-    P08: [267, 72, 86, 119, 124, 113],
-    P09: [265, 79, 131, 93, 93, 115],
-    P10: [378, 75, 90, 117, 117, 77]
+    P01: [257, 150, 90, 79, 83, 150], P02: [279, 131, 83, 87, 85, 138],
+    P03: [246, 86, 135, 99, 91, 140], P04: [409, 76, 68, 126, 106, 77],
+    P05: [383, 63, 56, 139, 128, 72], P06: [428, 77, 64, 127, 117, 64],
+    P07: [181, 74, 123, 115, 115, 138], P08: [249, 59, 70, 135, 141, 110],
+    P09: [284, 90, 150, 90, 90, 120], P10: [421, 75, 90, 118, 118, 68],
+    P11: [285, 70, 90, 100, 110, 135], P12: [360, 80, 70, 120, 120, 90],
+    P13: [285, 145, 70, 85, 90, 115], P14: [270, 70, 130, 85, 95, 130],
+    P15: [375, 100, 70, 115, 100, 90], P16: [330, 70, 85, 110, 130, 95]
   };
-  assert.equal(config.creatureConfig.length, 10);
-  assert.equal(config.creatureConfig.find((spirit) => spirit.id === 'P02').defaultPosition, 'back');
-  assert.equal(config.creatureConfig.find((spirit) => spirit.id === 'P03').defaultPosition, 'back');
-  assert.deepEqual(config.creatureConfig.find((spirit) => spirit.id === 'P09').skillIds, ['M09-S1', 'M09-S3', 'M09-S2']);
+  assert.equal(config.creatureConfig.length, 16);
+  assert.equal(config.creatureConfig.find((spirit) => spirit.id === 'P02').defaultPosition, 'front');
+  assert.equal(config.creatureConfig.find((spirit) => spirit.id === 'P03').defaultPosition, 'front');
+  assert.deepEqual(config.creatureConfig.find((spirit) => spirit.id === 'P09').skillIds, ['M09-S1', 'M09-S2', 'M09-S3']);
   const configuredSkillIds = config.creatureConfig.flatMap((spirit) => spirit.skillIds);
-  assert.equal(new Set(configuredSkillIds).size, 30);
-  assert.equal(Object.keys(config.skillConfig).length, 30);
+  assert.equal(new Set(configuredSkillIds).size, 48);
+  assert.equal(Object.keys(config.skillConfig).length, 48);
   config.creatureConfig.forEach((spirit) => {
     assert.deepEqual(
       [spirit.maxHp, spirit.physicalAttack, spirit.magicAttack, spirit.physicalDefense, spirit.magicDefense, spirit.speed],
@@ -311,7 +309,7 @@ test('20260811 十精灵冻结属性与三技能配置一致', () => {
   });
 });
 
-test('确认后的十精灵技能费用、数值与持续时间配置一致', () => {
+test('确认后的精灵技能费用、数值与持续时间配置一致', () => {
   const skills = battleSystemConfig().skillConfig;
   assert.deepEqual(
     {
@@ -328,17 +326,17 @@ test('确认后的十精灵技能费用、数值与持续时间配置一致', ()
       starArmor: [skills['M10-S1'].power, skills['M10-S2'].cost, skills['M10-S2'].fixedDamage, skills['M10-S2'].shieldValue, skills['M10-S3'].cost, skills['M10-S3'].gain, skills['M10-S3'].firstUseInBattleCostReduction]
     },
     {
-      fox: [85, 2, 1, 180, 6, true],
-      falcon: [25, 55, 100, 3],
-      seed: [25, 0.08, 2, undefined, 4],
-      badger: [40, 2, 1, 3, 280],
+      fox: [90, 3, 1, 250, 6, true],
+      falcon: [25, 60, 100, 3],
+      seed: [30, 0.1, 2, undefined, 4],
+      badger: [50, 2, undefined, 4, 400],
       shell: [2, 0.3, 4, 150],
-      rhino: [25, 3, 200, '能量转移', 1, true],
-      eclipse: [10, 140, 6, 0.3],
-      deer: [4, 'ally-field', true, 0.3],
-      bell: [4, 150, 150, 3],
-      vulnerable: [2, 5, 200, 2, 3],
-      starArmor: [20, 3, 200, 50, 3, 4, 3]
+      rhino: [30, 3, 200, '能量转移', 3, undefined],
+      eclipse: [30, 100, 6, 0.5],
+      deer: [5, 'ally-all', undefined, undefined],
+      bell: [3, 100, 100, 3],
+      vulnerable: [2, 5, 200, 2, 2],
+      starArmor: [30, 3, 200, 100, 5, 5, 5]
     }
   );
 });
@@ -356,41 +354,29 @@ test('生机播种不立即治疗，赋予4回合回复并在目标行动开始�
   assert.equal(target.statuses.regen.value, 0.1);
   assert.equal(game.state.mana.current, 8);
   forcePlayerAction(game, 'P01');
-  assert.equal(target.hp, 100 + Math.floor(262 * 0.1));
+  assert.equal(target.hp, 100 + Math.floor(257 * 0.1));
 });
 
-test('鹿鸣回春只能选择自身以外友方，并使双方各回复30%', () => {
+test('鹿鸣回春使场上全体获得4回合回复', () => {
   const game = gameFor(['P08', 'P01', 'P02']);
-  const actor = game.getSpirit('P08');
-  const target = game.getSpirit('P01');
-  actor.hp = 100;
-  target.hp = 100;
   forcePlayerAction(game, 'P08');
   game.state.mana.current = 10;
   assert.equal(game.useSkill('M08-S2').ok, true);
-  assert.equal(game.chooseSkillTarget('P01').ok, true);
-  assert.equal(actor.hp, 100 + Math.floor(267 * 0.3));
-  assert.equal(target.hp, 100 + Math.floor(262 * 0.3));
-  assert.equal(actor.statuses.regen, undefined);
-  assert.equal(target.statuses.regen, undefined);
-
-  forcePlayerAction(game, 'P08');
-  game.state.mana.current = 10;
-  assert.equal(game.useSkill('M08-S2').ok, true);
-  assert.equal(game.chooseSkillTarget('P08').ok, false);
+  game.getActiveSpiritIds().forEach((id) => assert.equal(game.getSpirit(id).statuses.regen.duration, 4));
+  assert.equal(game.state.mana.current, 5);
 });
 
-test('蓄势只在本回合第一次受击时触发并获得3层爆发', () => {
+test('蓄势在持续期间每次受击均获得2层爆发', () => {
   const game = gameFor(['P02', 'P01', 'P03']);
   game['addCharge']('P02', 1, '测试');
   const enemyId = game.getActiveEnemyIds()[0];
   game['activateEnemyContext'](enemyId);
   const attack = monsterData.MONSTER_SKILLS.RANGE_BOSS_VOLLEY;
   game['applyMonsterDamage']('P02', attack);
-  assert.equal(game.getSpirit('P02').damageAmpStacks, 3);
-  assert.equal(game.getSpirit('P02').statuses.charge, undefined);
+  assert.equal(game.getSpirit('P02').damageAmpStacks, 2);
+  assert.ok(game.getSpirit('P02').statuses.charge);
   game['applyMonsterDamage']('P02', attack);
-  assert.equal(game.getSpirit('P02').damageAmpStacks, 3);
+  assert.equal(game.getSpirit('P02').damageAmpStacks, 4);
 });
 
 test('未触发的蓄势在整回合结束时移除', () => {
@@ -428,7 +414,59 @@ test('风切结算中新获得的爆发不参与本次增幅且不被本次消�
   assert.equal(game.getSpirit('P02').damageAmpStacks, 2);
 });
 
-test('星能回流首次0费回4，后续支付3回4，换下再入场不重置首次资格', () => {
+test('概念组爆发可由队友赋予，非攻击保留且下次攻击全部消耗', () => {
+  const game = gameFor(['P11', 'P14', 'P12']);
+  forcePlayerAction(game, 'P11');
+  game.state.mana.current = 10;
+  assert.equal(game.useSkill('M11-S3').ok, true);
+  assert.equal(game.chooseSkillTarget('P14').ok, true);
+  assert.equal(game.getSpirit('P14').damageAmpStacks, 3);
+
+  forcePlayerAction(game, 'P14');
+  assert.equal(game.switchRow().ok, true);
+  assert.equal(game.getSpirit('P14').damageAmpStacks, 3);
+
+  forcePlayerAction(game, 'P14');
+  assert.equal(game.useSkill('M14-S1').ok, true);
+  assert.equal(game.getSpirit('P14').damageAmpStacks, 0);
+
+  const selfStackGame = gameFor(['P14', 'P12', 'P11']);
+  selfStackGame['addDamageAmp']('P14', 2, '测试');
+  forcePlayerAction(selfStackGame, 'P14');
+  selfStackGame.state.mana.current = 10;
+  assert.equal(selfStackGame.useSkill('M14-S2').ok, true);
+  assert.equal(selfStackGame.getSpirit('P14').damageAmpStacks, 2);
+});
+
+test('孢息续甲只能选择持盾目标并延长一次护盾行动周期', () => {
+  const game = gameFor(['P12', 'P01', 'P02']);
+  const target = game.getSpirit('P01');
+  game['addShieldValue']('P01', 100, '测试护盾');
+  target.freshShieldValue = 0;
+  forcePlayerAction(game, 'P12');
+  game.state.mana.current = 10;
+  assert.equal(game.useSkill('M12-S3').ok, true);
+  assert.equal(game.chooseSkillTarget('P02').ok, false);
+  assert.equal(game.chooseSkillTarget('P01').ok, true);
+  assert.equal(target.shieldExtensionTurns, 1);
+  game['finishSpiritTurnStatuses'](target);
+  assert.equal(target.shieldValue, 100);
+  assert.equal(target.shieldExtensionTurns, 0);
+  game['finishSpiritTurnStatuses'](target);
+  assert.equal(target.shieldValue, 0);
+});
+
+test('月露轻歌自动治疗生命比例最低的场上友方', () => {
+  const game = gameFor(['P16', 'P01', 'P02']);
+  game.getSpirit('P01').hp = 50;
+  game.getSpirit('P02').hp = 100;
+  forcePlayerAction(game, 'P16');
+  assert.equal(game.useSkill('M16-S1').ok, true);
+  assert.equal(game.getSpirit('P01').hp, 50 + Math.floor(257 * 0.08));
+  assert.equal(game.getSpirit('P02').hp, 100);
+});
+
+test('星能回流首次0费回5，后续支付5回5，换下再入场不重置首次资格', () => {
   const game = gameFor(['P10', 'P01', 'P02', 'P04']);
   forcePlayerAction(game, 'P10');
   game.state.mana.current = 7;
@@ -437,18 +475,18 @@ test('星能回流首次0费回4，后续支付3回4，换下再入场不重置�
   assert.equal(game.state.mana.current, 10);
 
   forcePlayerAction(game, 'P10');
-  game.state.mana.current = 3;
-  assert.equal(game.skillActualCost(battleSystemConfig().skillConfig['M10-S3']), 3);
+  game.state.mana.current = 5;
+  assert.equal(game.skillActualCost(battleSystemConfig().skillConfig['M10-S3']), 5);
   assert.equal(game.useSkill('M10-S3').ok, true);
-  assert.equal(game.state.mana.current, 4);
+  assert.equal(game.state.mana.current, 5);
 
   forcePlayerAction(game, 'P10');
   assert.equal(game.swapWithBench('P04').ok, true);
   forcePlayerAction(game, 'P04');
   assert.equal(game.swapWithBench('P10').ok, true);
   forcePlayerAction(game, 'P10');
-  game.state.mana.current = 3;
-  assert.equal(game.skillActualCost(battleSystemConfig().skillConfig['M10-S3']), 3);
+  game.state.mana.current = 5;
+  assert.equal(game.skillActualCost(battleSystemConfig().skillConfig['M10-S3']), 5);
 });
 
 test('允许仅选择一只首发精灵进入战斗', () => {
@@ -476,13 +514,13 @@ test('技能按钮统一返回风暴层数、连续降费、首次零费与护�
   const chainGame = gameFor(['P01', 'P02', 'P03']);
   const chainActor = chainGame.getSpirit('P01');
   chainActor.lastSkillId = 'M01-S2';
-  chainActor.skillUseStreak = 2;
+  chainActor.skillUseStreak = 3;
   chainGame.state.mana.current = 1;
   const chainState = chainGame.getSkillButtonState(config.skillConfig['M01-S2'], chainActor);
   assert.equal(chainState.usable, true);
   assert.equal(chainState.actualCost, 0);
-  assert.match(chainState.enhanceReason, /连续使用 2 次/);
-  assert.match(chainState.enhanceValue, /妖力消耗 -2/);
+  assert.match(chainState.enhanceReason, /连续使用 3 次/);
+  assert.match(chainState.enhanceValue, /妖力消耗 -3/);
 
   const starGame = gameFor(['P10', 'P01', 'P02']);
   const starState = starGame.getSkillButtonState(config.skillConfig['M10-S3'], starGame.getSpirit('P10'));
@@ -498,32 +536,20 @@ test('技能按钮统一返回风暴层数、连续降费、首次零费与护�
   assert.match(shieldState.enhanceValue, /追加 300 固定伤害/);
 });
 
-test('铁壁援护按技能确认时妖力判断额外治疗', () => {
+test('铁壁援护仅为目标提供200护盾', () => {
   const config = battleSystemConfig();
   const skill = config.skillConfig['M06-S2'];
   assert.equal(skill.name, '铁壁援护');
 
-  const cancelledEnhanceGame = gameFor(['P06', 'P01', 'P02']);
-  forcePlayerAction(cancelledEnhanceGame, 'P06');
-  const firstTarget = cancelledEnhanceGame.getSpirit('P06');
-  firstTarget.hp = 100;
-  cancelledEnhanceGame.state.mana.current = 5;
-  const preview = cancelledEnhanceGame.getSkillButtonState(skill, firstTarget, 'P06');
-  assert.equal(preview.enhanced, true);
-  assert.match(preview.enhanceValue, /20%/);
-  assert.equal(cancelledEnhanceGame.useSkill(skill.id).ok, true);
-  cancelledEnhanceGame.state.mana.current = 4;
-  assert.equal(cancelledEnhanceGame.chooseSkillTarget('P06').ok, true);
-  assert.equal(firstTarget.hp, 100);
-
-  const confirmedEnhanceGame = gameFor(['P06', 'P01', 'P02']);
-  forcePlayerAction(confirmedEnhanceGame, 'P06');
-  const secondTarget = confirmedEnhanceGame.getSpirit('P06');
-  secondTarget.hp = 100;
-  confirmedEnhanceGame.state.mana.current = 5;
-  assert.equal(confirmedEnhanceGame.useSkill(skill.id).ok, true);
-  assert.equal(confirmedEnhanceGame.chooseSkillTarget('P06').ok, true);
-  assert.equal(secondTarget.hp, 100 + Math.floor(config.creatureConfig.find((spirit) => spirit.id === 'P06').maxHp * 0.2));
+  const game = gameFor(['P06', 'P01', 'P02']);
+  const target = game.getSpirit('P01');
+  target.hp = 100;
+  forcePlayerAction(game, 'P06');
+  game.state.mana.current = 5;
+  assert.equal(game.useSkill(skill.id).ok, true);
+  assert.equal(game.chooseSkillTarget('P01').ok, true);
+  assert.equal(target.hp, 100);
+  assert.equal(target.shieldValue, 200);
 });
 
 test('通用强化条件支持低血、目标状态、位置、层数与目标依赖标记', () => {
@@ -565,7 +591,7 @@ test('通用强化条件支持低血、目标状态、位置、层数与目标�
   assert.match(confirmed.enhanceReason, /专注 3 层/);
 });
 
-test('盾压在确认时消耗现有护盾并只造成等额固定伤害', () => {
+test('盾压读取护盾快照追加固定伤害，技能本身不主动消耗护盾', () => {
   const game = gameFor(['P04', 'P01', 'P02']);
   forcePlayerAction(game, 'P04');
   const actor = game.getSpirit('P04');
@@ -573,13 +599,15 @@ test('盾压在确认时消耗现有护盾并只造成等额固定伤害', () =>
   actor.freshShieldValue = 0;
   game.state.mana.current = 10;
   const skill = battleSystemConfig().skillConfig['M04-S2'];
+  const physicalDamage = game['attackDamage']('P04', skill, skill.power, false, 1);
   const hpBefore = game.state.boss.hp;
   assert.equal(game.useSkill('M04-S2').ok, true);
+  // 技能未主动消耗；已有护盾在行动结束时按通用规则自然清除。
   assert.equal(actor.shieldValue, 0);
-  assert.equal(hpBefore - game.state.boss.hp, 300);
+  assert.equal(hpBefore - game.state.boss.hp, physicalDamage + 300);
 });
 
-test('灵铃庇佑 Case A：先用铃音守护后首次使用仍为1费', () => {
+test('灵铃庇佑 Case A：先用其他技能会消耗入场首次技能资格', () => {
   const game = gameFor(['P08', 'P01', 'P02', 'P04']);
   const skill = battleSystemConfig().skillConfig['M08-S3'];
   forcePlayerAction(game, 'P08');
@@ -587,27 +615,27 @@ test('灵铃庇佑 Case A：先用铃音守护后首次使用仍为1费', () => 
   assert.equal(game.useSkill('M08-S1').ok, true);
   forcePlayerAction(game, 'P08');
   game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 1);
+  assert.equal(game.skillActualCost(skill), 3);
   assert.equal(game.useSkill('M08-S3').ok, true);
   assert.equal(game.chooseSkillTarget('P08').ok, true);
 });
 
-test('灵铃庇佑 Case B：同一入场周期首次1费、再次4费', () => {
+test('灵铃庇佑 Case B：同一入场周期首次0费、再次3费', () => {
   const game = gameFor(['P08', 'P01', 'P02', 'P04']);
   const skill = battleSystemConfig().skillConfig['M08-S3'];
   forcePlayerAction(game, 'P08');
   game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 1);
+  assert.equal(game.skillActualCost(skill), 0);
   assert.equal(game.useSkill('M08-S3').ok, true);
   assert.equal(game.chooseSkillTarget('P08').ok, true);
   forcePlayerAction(game, 'P08');
   game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 4);
+  assert.equal(game.skillActualCost(skill), 3);
   assert.equal(game.useSkill('M08-S3').ok, true);
   assert.equal(game.chooseSkillTarget('P08').ok, true);
 });
 
-test('灵铃庇佑 Case C：换下再入场重新获得1费资格', () => {
+test('灵铃庇佑 Case C：换下再入场重新获得0费资格', () => {
   const game = gameFor(['P08', 'P01', 'P02', 'P04']);
   const skill = battleSystemConfig().skillConfig['M08-S3'];
   forcePlayerAction(game, 'P08');
@@ -620,13 +648,13 @@ test('灵铃庇佑 Case C：换下再入场重新获得1费资格', () => {
   assert.equal(game.swapWithBench('P08').ok, true);
   forcePlayerAction(game, 'P08');
   game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 1);
+  assert.equal(game.skillActualCost(skill), 0);
   assert.equal(game.useSkill('M08-S3').ok, true);
   assert.equal(game.chooseSkillTarget('P08').ok, true);
-  assert.equal(game.getSpirit('P08').shieldValue, 150);
+  assert.equal(game.getSpirit('P08').shieldValue, 100);
 });
 
-test('灵铃庇佑 Case D：使用多个其他技能后首次使用仍为1费', () => {
+test('灵铃庇佑 Case D：使用多个其他技能后恢复基础3费', () => {
   const game = gameFor(['P08', 'P01', 'P02', 'P04']);
   const skill = battleSystemConfig().skillConfig['M08-S3'];
   for (let index = 0; index < 3; index += 1) {
@@ -636,53 +664,36 @@ test('灵铃庇佑 Case D：使用多个其他技能后首次使用仍为1费', 
   }
   forcePlayerAction(game, 'P08');
   game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 1);
+  assert.equal(game.skillActualCost(skill), 3);
   assert.equal(game.useSkill('M08-S3').ok, true);
   assert.equal(game.chooseSkillTarget('P08').ok, true);
 });
 
-test('能量转移只能选择其他友方，节能作用于动态费用后并在技能支付时移除', () => {
+test('能量转移使场上全体获得2回合护盾延续', () => {
   const game = gameFor(['P06', 'P01', 'P02']);
+  game['addShieldValue']('P01', 100, '测试护盾');
   forcePlayerAction(game, 'P06');
   game.state.mana.current = 10;
   assert.equal(game.useSkill('M06-S3').ok, true);
-  assert.equal(game.chooseSkillTarget('P06').ok, false);
-  assert.equal(game.chooseSkillTarget('P01').ok, true);
-  assert.ok(game.getSpirit('P01').statuses['energy-saving']);
+  game.getActiveSpiritIds().forEach((id) => assert.equal(game.getSpirit(id).statuses['shield-guard'].duration, 2));
+  assert.equal(game.state.mana.current, 7);
 
-  const chain = battleSystemConfig().skillConfig['M01-S2'];
-  const actor = game.getSpirit('P01');
-  actor.lastSkillId = chain.id;
-  actor.skillUseStreak = 1;
-  forcePlayerAction(game, 'P01');
-  game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(chain), 0);
-  assert.equal(game.useSkill(chain.id).ok, true);
-  assert.equal(actor.statuses['energy-saving'], undefined);
+  const target = game.getSpirit('P01');
+  game['finishSpiritTurnStatuses'](target);
+  assert.equal(target.shieldValue, 100);
+  assert.equal(target.statuses['shield-guard'].duration, 1);
+  game['finishSpiritTurnStatuses'](target);
+  assert.equal(target.shieldValue, 100);
+  assert.equal(target.statuses['shield-guard'], undefined);
+  game['finishSpiritTurnStatuses'](target);
+  assert.equal(target.shieldValue, 0);
 });
 
-test('能量转移费用为1且节能覆盖1到6费并只作用于下一次技能', () => {
+test('能量转移费用为3且不再施加旧节能状态', () => {
   const config = battleSystemConfig();
-  assert.equal(config.skillConfig['M06-S3'].cost, 1);
-  const game = new BattleGame({ config, selectedSpiritIds: ['P06', 'P01', 'P02'] });
-  const actor = game.getSpirit('P01');
-  const baseSkill = config.skillConfig['M01-S1'];
-  for (let configuredCost = 1; configuredCost <= 6; configuredCost += 1) {
-    const skill = { ...baseSkill, cost: configuredCost };
-    game['addEnergySaving']('P01', '验收');
-    assert.equal(game.skillActualCost(skill, 10, actor), Math.floor(configuredCost * 0.5));
-    delete actor.statuses['energy-saving'];
-  }
-  const skill = config.skillConfig['M01-S2'];
-  game['addEnergySaving']('P01', '验收');
-  forcePlayerAction(game, 'P01');
-  game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 1);
-  assert.equal(game.useSkill(skill.id).ok, true);
-  assert.equal(actor.statuses['energy-saving'], undefined);
-  forcePlayerAction(game, 'P01');
-  game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 1);
+  assert.equal(config.skillConfig['M06-S3'].cost, 3);
+  assert.equal(config.skillConfig['M06-S3'].addEnergySaving, undefined);
+  assert.equal(config.skillConfig['M06-S3'].addShieldGuardTurns, 2);
 });
 
 test('节能在非技能行动后保留，但离场时移除', () => {
@@ -696,28 +707,26 @@ test('节能在非技能行动后保留，但离场时移除', () => {
   assert.equal(game.getSpirit('P01').statuses['energy-saving'], undefined);
 });
 
-test('感电标记施加三回合易伤并使最终伤害提高 50%', () => {
+test('感电标记施加两回合易伤并使最终伤害提高 50%', () => {
   const game = gameFor(['P09', 'P01', 'P02']);
   forcePlayerAction(game, 'P09');
   game.state.mana.current = 10;
   assert.equal(game.useSkill('M09-S3').ok, true);
-  assert.equal(game.state.boss.statuses.vulnerable.duration, 3);
+  assert.equal(game.state.boss.statuses.vulnerable.duration, 2);
 
   const attack = battleSystemConfig().skillConfig['M09-S2'];
   const base = game['attackDamage']('P09', attack, attack.power, false, 1);
   assert.equal(Math.ceil(base * game['currentBossDamageTakenMultiplier']()), Math.ceil(base * 1.5));
-  game['finishBossTurnStatuses']();
-  assert.equal(game.state.boss.statuses.vulnerable.duration, 2);
   game['finishBossTurnStatuses']();
   assert.equal(game.state.boss.statuses.vulnerable.duration, 1);
   game['finishBossTurnStatuses']();
   assert.equal(game.state.boss.statuses.vulnerable, undefined);
 });
 
-test('炽能连斩费用按2到1到0循环，0费释放或改用其他技能后重置', () => {
+test('炽能连斩费用按3到2到1到0递减，0费可持续且其他技能重置', () => {
   const game = gameFor(['P01', 'P02', 'P03']);
   const skill = battleSystemConfig().skillConfig['M01-S2'];
-  for (const expectedCost of [2, 1, 0]) {
+  for (const expectedCost of [3, 2, 1, 0]) {
     forcePlayerAction(game, 'P01');
     game.state.mana.current = 10;
     assert.equal(game.skillActualCost(skill), expectedCost);
@@ -725,13 +734,13 @@ test('炽能连斩费用按2到1到0循环，0费释放或改用其他技能后�
   }
   forcePlayerAction(game, 'P01');
   game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 2);
+  assert.equal(game.skillActualCost(skill), 0);
   assert.equal(game.useSkill(skill.id).ok, true);
   forcePlayerAction(game, 'P01');
   assert.equal(game.useSkill('M01-S1').ok, true);
   forcePlayerAction(game, 'P01');
   game.state.mana.current = 10;
-  assert.equal(game.skillActualCost(skill), 2);
+  assert.equal(game.skillActualCost(skill), 3);
 });
 
 test('同回合多个技能可以累计获得超过 2 点妖力', () => {
@@ -758,17 +767,17 @@ test('界面请求目标选择时，即使只有一个合法前排也不会自�
   assert.ok(game.getEnemy(targetId).hp < hpBefore);
 });
 
-test('星甲冲击造成200固定伤害并保留本次行动新获得的50护盾', () => {
+test('星甲冲击造成200固定伤害并保留本次行动新获得的100护盾', () => {
   const game = gameFor(['P10', 'P01', 'P02']);
   forcePlayerAction(game, 'P10');
   game.state.mana.current = 10;
   const hpBefore = game.state.boss.hp;
   assert.equal(game.useSkill('M10-S2').ok, true);
   assert.equal(hpBefore - game.state.boss.hp, 200);
-  assert.equal(game.getSpirit('P10').shieldValue, 50);
+  assert.equal(game.getSpirit('P10').shieldValue, 100);
 });
 
-test('技能事件记录动态费用、首次免费与0费重置原因', () => {
+test('技能事件记录动态费用且0费连续释放不会重置', () => {
   const confirmed = [];
   const resolved = [];
   const config = battleSystemConfig();
@@ -781,20 +790,20 @@ test('技能事件记录动态费用、首次免费与0费重置原因', () => {
       onSkillResolved: (event) => resolved.push(event)
     }
   });
-  for (const expectedCost of [2, 1, 0]) {
+  for (const expectedCost of [3, 2, 1, 0]) {
     forcePlayerAction(game, 'P01');
     game.state.mana.current = 10;
     assert.equal(game.useSkill('M01-S2').ok, true);
     assert.equal(confirmed.at(-1).actualCost, expectedCost);
   }
-  assert.deepEqual(confirmed.map((event) => event.configuredCost), [2, 2, 2]);
+  assert.deepEqual(confirmed.map((event) => event.configuredCost), [3, 3, 3, 3]);
   assert.equal(confirmed.at(-1).isFreeCast, true);
   assert.equal(confirmed.at(-1).freeCastReason, 'dynamic_cost_reduced_to_zero');
-  assert.equal(resolved.at(-1).resetTrigger, 'zero_cost_cast');
-  assert.equal(resolved.at(-1).stateAfterCast.consecutiveUseCount, 0);
+  assert.equal(resolved.at(-1).resetTrigger, 'none');
+  assert.equal(resolved.at(-1).stateAfterCast.consecutiveUseCount, 4);
 });
 
-test('护盾来源按FIFO记录吸收与主动消耗，但总护盾结算值保持一致', () => {
+test('护盾来源按FIFO记录吸收，盾压读取快照但不主动消耗护盾', () => {
   const granted = [];
   const absorbed = [];
   const consumed = [];
@@ -823,10 +832,9 @@ test('护盾来源按FIFO记录吸收与主动消耗，但总护盾结算值保�
 
   game['telemetrySkillContext'] = { actorId: 'P04', skillId: 'M04-S2', skillCastId: 'cast-3', hitIndex: 0 };
   const converted = game['consumeShieldForSkill'](actor, config.skillConfig['M04-S2']);
-  assert.equal(converted, 280);
-  assert.equal(actor.shieldValue, 0);
-  assert.equal(consumed.reduce((sum, event) => sum + event.shieldConsumed, 0), 280);
-  assert.equal(consumed.reduce((sum, event) => sum + event.fixedDamageGenerated, 0), 280);
+  assert.equal(converted, 0);
+  assert.equal(actor.shieldValue, 280);
+  assert.equal(consumed.length, 0);
 });
 
 test('易伤状态与额外伤害通过同一结算事件直接归因', () => {

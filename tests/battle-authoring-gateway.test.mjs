@@ -23,7 +23,7 @@ before(async () => {
     readFile(canonicalPlayerPath, 'utf8'),
     readFile(canonicalEnemyPath, 'utf8')
   ]);
-  viteServer = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  viteServer = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   [gatewayHarness, productionGateway, authoringContract] = await Promise.all([
     loadBattleAuthoringGatewayHarness(viteServer),
     viteServer.ssrLoadModule('/src/battleAuthoringGateway.ts'),
@@ -150,7 +150,7 @@ test('health, contract and definition reads expose DTOs with the correct per-sou
   );
   assert.deepEqual(
     contract.body.contract.definitionKinds.playerSpirit.fieldSchema.primaryRole.values,
-    ['attack', 'protect', 'recover', 'energy']
+    ['attack', 'protect', 'recover', 'energy', 'support']
   );
   assert.deepEqual(
     contract.body.contract.definitionKinds.enemyMonster.fieldSchema.coefficients.fields.speed,

@@ -45,9 +45,11 @@ function bossDataFromMonster(monsterId: string): BossData {
   return {
     id: monster.id,
     name: monster.name,
+    element: monster.element,
     ...instance.stats,
     display: {
       displayName: monster.name,
+      element: monster.element,
       portraitKey: 'boss-default',
       previewSkills: monster.skills
         .map<BossPreviewSkill>((entry) => {
@@ -56,6 +58,7 @@ function bossDataFromMonster(monsterId: string): BossData {
           return {
             id: skill.id,
             name: skill.name,
+            element: skill.element,
             tags: skill.execution.targetRule === 'enemy_all' ? ['aoe'] : skill.execution.damageType === 'none' ? ['status'] : ['single'],
             behaviorCategory: skill.behaviorCategory,
             targetDescription: monsterSkillTargetDescription(skill),

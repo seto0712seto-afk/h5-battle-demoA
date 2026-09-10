@@ -5,7 +5,7 @@ export type MonsterRole = 'warrior' | 'shooter' | 'mage';
 export type MonsterDamageType = 'physical' | 'magical' | 'fixed' | 'none';
 export type MonsterTargetRule = 'enemy_single' | 'enemy_all' | 'self';
 export type MonsterTargetPreference = 'front' | 'back' | 'all';
-export type MonsterSkillSelectionMode = 'weighted' | 'forced_opening' | 'forced_followup';
+export type MonsterSkillSelectionMode = 'weighted' | 'sequence' | 'forced_opening' | 'forced_followup';
 export type MonsterSpecialEffect = 'apply_exposed';
 
 export type MonsterSkillEffect =
@@ -78,6 +78,7 @@ export interface MonsterSkillDefinition {
   id: string;
   tier: string;
   name: string;
+  element?: string;
   behaviorCategory: string;
   cooldown: number;
   isBasicAttack: boolean;
@@ -88,6 +89,7 @@ export interface MonsterSkillDefinition {
 export interface MonsterDefinition {
   id: string;
   name: string;
+  element?: string;
   level: number;
   category: MonsterCategory;
   role?: MonsterRole;
@@ -101,6 +103,12 @@ export interface MonsterDefinition {
   };
   baseHp: number;
   skills: MonsterSkillLoadoutEntry[];
+  raceStats?: MonsterFinalStats;
+  growthRates?: {
+    hp: number;
+    other: number;
+  };
+  skillSequence?: string[];
   actionCycle?: {
     counterLabel: string;
     countedSkillIds: string[];
@@ -152,6 +160,7 @@ export interface MonsterAiRuntime {
   temporarySkillPowerBonuses: Record<string, number>;
   actionCycleCount: number;
   lastTargetIdBySkill: Record<string, string>;
+  sequenceIndex: number;
 }
 
 export interface MonsterRandomTrace {
@@ -162,7 +171,7 @@ export interface MonsterRandomTrace {
 
 export interface MonsterActionSelection {
   skillId: string | null;
-  source: 'forced_followup' | 'forced_opening' | 'weighted' | 'basic_fallback' | 'skip';
+  source: 'forced_followup' | 'forced_opening' | 'sequence' | 'weighted' | 'basic_fallback' | 'skip';
   randomTrace?: MonsterRandomTrace;
   lockedTargetId?: string;
   lockedSlotIndex?: number;

@@ -52,6 +52,13 @@ export const CORE_STATUS_RULES = {
     clearOnBench: true,
     description: '下一次使用技能时，妖力消耗降低 50%。'
   },
+  shieldGuard: {
+    id: 'shield-guard',
+    name: '盾阵',
+    stackable: false,
+    maxStacks: 1,
+    description: '持续期间护盾不会在正常行动结束时清除。'
+  },
   vulnerable: {
     id: 'vulnerable',
     name: '易伤',
@@ -61,7 +68,7 @@ export const CORE_STATUS_RULES = {
   }
 } as const;
 
-export const CHARGE_DAMAGE_AMP_STACKS_ON_HIT = 3;
+export const CHARGE_DAMAGE_AMP_STACKS_ON_HIT = 2;
 
 export function buildRoundState(
   index: number,

@@ -338,7 +338,7 @@ export interface BossSkillUsedTelemetry extends TelemetryEventBase {
   enemyId: string;
   enemyDefinitionId: string;
   skillId: string;
-  source: 'forced_followup' | 'forced_opening' | 'weighted' | 'basic_fallback' | 'skip';
+  source: 'forced_followup' | 'forced_opening' | 'sequence' | 'weighted' | 'basic_fallback' | 'skip';
   telegraph: boolean;
   targetIds: string[];
   power: number;

@@ -24,7 +24,7 @@ before(async () => {
     readFile(canonicalMonsterDataPath, 'utf8'),
     readFile(canonicalDataPath, 'utf8')
   ]);
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   writer = await server.ssrLoadModule('/src/enemyMonsterAuthoringWriter.ts');
   writerHarness = await loadEnemyMonsterWriteBackHarness(server);
 });
@@ -130,14 +130,14 @@ test('production API is fixed to canonical monsterData.ts and exposes no arbitra
   assert.equal(await readFile(sourcePath, 'utf8'), fixtureOnlyText);
 });
 
-test('all 21 canonical IDs have one structured Theme or Boss source locator', async () => {
+test('all 26 canonical IDs have one structured Theme or direct source locator', async () => {
   const { sourcePath } = await createFixture();
   const snapshot = await readSnapshot(sourcePath);
-  assert.equal(snapshot.definitions.length, 21);
-  assert.equal(snapshot.locations.length, 21);
-  assert.equal(new Set(snapshot.locations.map((entry) => entry.id)).size, 21);
+  assert.equal(snapshot.definitions.length, 26);
+  assert.equal(snapshot.locations.length, 26);
+  assert.equal(new Set(snapshot.locations.map((entry) => entry.id)).size, 26);
   assert.equal(snapshot.locations.filter((entry) => entry.sourceKind === 'theme-config').length, 18);
-  assert.equal(snapshot.locations.filter((entry) => entry.sourceKind === 'direct-boss').length, 3);
+  assert.equal(snapshot.locations.filter((entry) => entry.sourceKind === 'direct-boss').length, 8);
   assert.deepEqual(
     snapshot.locations.map((entry) => entry.id),
     snapshot.definitions.map((entry) => entry.id)

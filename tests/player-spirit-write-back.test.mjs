@@ -19,7 +19,7 @@ let writerHarness;
 
 before(async () => {
   canonicalDataBefore = await readFile(canonicalDataPath, 'utf8');
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   writer = await server.ssrLoadModule('/src/playerSpiritAuthoringWriter.ts');
   writerHarness = await loadPlayerSpiritWriteBackHarness(server);
 });

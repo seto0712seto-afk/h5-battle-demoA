@@ -8,6 +8,8 @@ const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 async function withModules(context) {
   const vite = await createServer({
     root: projectRoot,
+    configFile: false,
+    cacheDir: '.vite-cache',
     appType: 'custom',
     logLevel: 'silent',
     server: { middlewareMode: true }

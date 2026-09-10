@@ -65,7 +65,7 @@ export type BattleAuthoringFieldSchema =
   | BattleAuthoringObjectFieldSchema;
 
 export const BATTLE_AUTHORING_ENUM_VALUES = {
-  battleBehavior: ['attack', 'protect', 'recover', 'energy'],
+  battleBehavior: ['attack', 'protect', 'recover', 'energy', 'support'],
   row: ['front', 'back'],
   monsterCategory: ['minor', 'elite', 'boss'],
   monsterRole: ['warrior', 'shooter', 'mage']

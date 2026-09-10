@@ -16,7 +16,7 @@ let vite, core, harness, production, authoring;
 let protectedBefore;
 before(async () => {
   protectedBefore = await Promise.all(['data.ts', 'monsterData.ts'].map((name) => readFile(path.join(root, 'src', name), 'utf8')));
-  vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  vite = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   [core, harness, production, authoring] = await Promise.all([
     vite.ssrLoadModule('/src/battleAuthoringBatchWriterCore.ts'),
     loadBattleAuthoringGatewayHarness(vite),

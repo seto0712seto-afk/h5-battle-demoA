@@ -189,6 +189,7 @@ export class PreBattleUI {
     stats.append(this.metaBlock('速度', String(spirit.speed)));
     stats.append(this.metaBlock('魔攻', String(spirit.magicAttack)));
     stats.append(this.metaBlock('魔防', String(spirit.magicDefense)));
+    if (spirit.element) stats.append(this.metaBlock('系别', spirit.element));
     panel.append(stats);
 
     panel.append(sectionTitle('技能'));

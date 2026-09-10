@@ -110,6 +110,8 @@ export class StageSelectUI {
       const row = element('article', 'stage-battle-row');
       row.append(textEl('strong', '', `第 ${index + 1} 场`));
       row.append(textEl('span', '', battle.enemies.map((enemy) => `${this.bossName(enemy)} ×1`).join(' / ')));
+      if (battle.targetRounds) row.append(textEl('span', '', `目标 ${battle.targetRounds[0]}～${battle.targetRounds[1]} 回合`));
+      battle.notes?.forEach((note) => row.append(textEl('span', '', `备注：${note}`)));
       battles.append(row);
     });
     panel.append(battles);
@@ -162,6 +164,7 @@ export class StageSelectUI {
         card.append(textEl('strong', '', skill.name));
         const meta = element('div', 'skill-meta-row');
         meta.append(textEl('span', 'skill-meta-pill', skill.behaviorCategory));
+        if (skill.element) meta.append(textEl('span', 'skill-meta-pill', `${skill.element}系`));
         meta.append(textEl('span', 'skill-meta-pill', skill.targetDescription));
         if (skill.damageTypeDescription) meta.append(textEl('span', 'skill-meta-pill', skill.damageTypeDescription));
         if (skill.power !== undefined) meta.append(textEl('span', 'skill-meta-pill', `威力 ${skill.power}`));

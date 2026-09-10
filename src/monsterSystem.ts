@@ -30,6 +30,16 @@ export function calculateLevelScaledUnitStats(baseStats: UnitStats, level: numbe
 }
 
 export function calculateMonsterStats(definition: MonsterDefinition, level = definition.level): MonsterFinalStats {
+  if (definition.growthRates) {
+    return {
+      maxHp: Math.round(definition.baseHp * level * definition.growthRates.hp),
+      physicalAttack: Math.round(100 * definition.coefficients.physicalAttack * level * definition.growthRates.other),
+      physicalDefense: Math.round(100 * definition.coefficients.physicalDefense * level * definition.growthRates.other),
+      magicAttack: Math.round(100 * definition.coefficients.magicAttack * level * definition.growthRates.other),
+      magicDefense: Math.round(100 * definition.coefficients.magicDefense * level * definition.growthRates.other),
+      speed: Math.round(100 * definition.coefficients.speed * level * definition.growthRates.other)
+    };
+  }
   return calculateLevelScaledUnitStats({
     physicalAttack: 100 * definition.coefficients.physicalAttack,
     physicalDefense: 100 * definition.coefficients.physicalDefense,
@@ -54,7 +64,8 @@ export function createMonsterInstance(definition: MonsterDefinition, overrides: 
 
 export function createMonsterAiRuntime(
   definition?: MonsterDefinition,
-  skills: Record<string, MonsterSkillDefinition> = {}
+  skills: Record<string, MonsterSkillDefinition> = {},
+  sequenceStartIndex = 0
 ): MonsterAiRuntime {
   const runtimeSkillPowers = Object.fromEntries(
     (definition?.skills ?? [])
@@ -71,7 +82,10 @@ export function createMonsterAiRuntime(
     runtimeSkillPowers,
     temporarySkillPowerBonuses: {},
     actionCycleCount: 0,
-    lastTargetIdBySkill: {}
+    lastTargetIdBySkill: {},
+    sequenceIndex: definition?.skillSequence?.length
+      ? Math.max(0, Math.trunc(sequenceStartIndex)) % definition.skillSequence.length
+      : 0
   };
 }
 
@@ -163,6 +177,17 @@ export function selectMonsterAction(
   if (forcedOpening) {
     runtime.usedForcedOpeningSkillIds.push(forcedOpening.skillId);
     return { skillId: forcedOpening.skillId, source: 'forced_opening' };
+  }
+
+  if (definition.skillSequence?.length) {
+    for (let offset = 0; offset < definition.skillSequence.length; offset += 1) {
+      const index = (runtime.sequenceIndex + offset) % definition.skillSequence.length;
+      const skillId = definition.skillSequence[index];
+      if (!isAvailable(skillId)) continue;
+      runtime.sequenceIndex = (index + 1) % definition.skillSequence.length;
+      return { skillId, source: 'sequence' };
+    }
+    return { skillId: null, source: 'skip' };
   }
 
   const candidates = definition.skills.filter((entry) =>

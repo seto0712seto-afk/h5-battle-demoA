@@ -8,6 +8,8 @@ let monsterData;
 
 before(async () => {
   viteServer = await createServer({
+    configFile: false,
+    cacheDir: '.vite-cache',
     server: { middlewareMode: true },
     appType: 'custom',
     logLevel: 'silent'

@@ -59,6 +59,9 @@ interface EnemyBattleSetup {
   definition: MonsterDefinition;
   bossData: BossData;
   position: EnemyBattlePosition;
+  instanceName?: string;
+  aiSequenceStartIndex: number;
+  initialHpRatio: number;
 }
 
 interface SkillEvaluation extends SkillButtonState {
@@ -129,7 +132,10 @@ export class BattleGame {
         instanceId,
         definition,
         bossData,
-        position: parsed.position ?? defaultEnemyPosition(definition.defaultPosition, index)
+        position: parsed.position ?? defaultEnemyPosition(definition.defaultPosition, index),
+        instanceName: parsed.instanceName,
+        aiSequenceStartIndex: parsed.aiSequenceStartIndex ?? 0,
+        initialHpRatio: Math.min(1, Math.max(0, parsed.initialHpRatio ?? 1))
       };
     });
     const firstSetup = this.enemySetups[0];
@@ -277,7 +283,11 @@ export class BattleGame {
 
   private getAllySkillTargetIds(skill: SkillData, actorId = this.getActingSpirit()?.id) {
     const targets = this.getHealTargets();
-    return skill.excludeSelfTarget && actorId ? targets.filter((id) => id !== actorId) : targets;
+    return targets.filter((id) => {
+      if (skill.excludeSelfTarget && actorId && id === actorId) return false;
+      if (skill.requiresTargetShield && this.getSpirit(id).shieldValue <= 0) return false;
+      return true;
+    });
   }
 
   enemyStatusView(enemyId: string) {
@@ -782,24 +792,25 @@ export class BattleGame {
     this.enemyRandom = {};
     const enemies: Record<string, RuntimeEnemy> = {};
     const enemySlots = this.enemySetups.map((setup, index) => {
-      this.enemyAi[setup.instanceId] = createMonsterAiRuntime(setup.definition, MONSTER_SKILLS);
+      this.enemyAi[setup.instanceId] = createMonsterAiRuntime(setup.definition, MONSTER_SKILLS, setup.aiSequenceStartIndex);
       this.enemyRandom[setup.instanceId] = new SeededBattleRandom(`${this.battleSeed}:enemy:${index}:${setup.definition.id}`);
       enemies[setup.instanceId] = {
         ...setup.bossData,
         id: setup.instanceId,
         definitionId: setup.definition.id,
-        name: setup.definition.name,
+        name: setup.instanceName ?? setup.definition.name,
+        element: setup.definition.element,
         category: setup.definition.category,
-        row: setup.position === 'front' ? 'front' : 'back',
+        row: enemyPositionRow(setup.position),
         position: setup.position,
-        hp: setup.bossData.maxHp,
+        hp: Math.max(1, Math.ceil(setup.bossData.maxHp * setup.initialHpRatio)),
         action: 100,
         cooldowns: {},
         statuses: {}
       };
       return {
         position: setup.position,
-        row: setup.position === 'front' ? 'front' as const : 'back' as const,
+        row: enemyPositionRow(setup.position),
         enemyId: setup.instanceId
       };
     });
@@ -836,6 +847,7 @@ export class BattleGame {
         freshRegenTurns: 0,
         shieldValue: 0,
         freshShieldValue: 0,
+        shieldExtensionTurns: 0,
         shieldInstances: [],
         statuses: {}
       };
@@ -859,6 +871,7 @@ export class BattleGame {
           row: this.spiritInfo(spiritId).defaultPosition
         }));
     Object.values(spirits).forEach((spirit) => {
+      spirit.shieldExtensionTurns ??= 0;
       spirit.skillUseCounts = {};
       spirit.entrySkillAvailable = slots.some((slot) => slot.spiritId === spirit.id);
       spirit.entrySequenceId = 0;
@@ -1240,6 +1253,14 @@ export class BattleGame {
         fxTargetIds = healed.map((item) => item.id);
         this.log(skill.name + ' 回复全体：' + healed.map((item) => this.spiritName(item.id) + ' +' + item.amount).join('，') + '。');
       }
+      if (skill.lowestHpAllyHealPercent && spirit.hp > 0) {
+        const lowestId = this.lowestHpRatioTarget(this.getActiveSpiritIds());
+        if (lowestId) {
+          const healed = this.healSpirit(actorId, lowestId, skill.lowestHpAllyHealPercent, skill.name);
+          fxTargetIds = [...new Set([...fxTargetIds, lowestId])];
+          this.log(skill.name + ' 回复当前生命比例最低的友方 ' + this.spiritName(lowestId) + ' ' + healed + ' 点生命。');
+        }
+      }
       if (spirit.hp > 0) this.applySkillStatusEffects(actorId, skill, actorId);
     }
 
@@ -1330,7 +1351,7 @@ export class BattleGame {
       this.applySkillStatusEffects(actorId, skill, actorId);
     }
 
-    this.consumeDamageAmpAfterSkill(spirit, stateBeforeCast.damageAmpStacks);
+    this.consumeDamageAmpAfterSkill(spirit, stateBeforeCast.damageAmpStacks, skill);
     const requestedManaGain = manaGain;
     if (this.state.actionContext === 'extra' && manaGain > 0) {
       this.log('额外行动不获得妖力（' + skill.name + ' 原始回能 +' + manaGain + ' → 实际 +0）。');
@@ -1453,6 +1474,12 @@ export class BattleGame {
         enhancements.push({
           reason: '确认时拥有 ' + converted + ' 护盾',
           value: '追加 ' + Math.ceil(converted * skill.shieldToFixedDamageRatio) + ' 固定伤害'
+        });
+      }
+      if (skill.bonusDamageFromShield && actor.shieldValue > 0) {
+        enhancements.push({
+          reason: '确认时拥有 ' + actor.shieldValue + ' 护盾',
+          value: '追加 ' + actor.shieldValue + ' 固定伤害'
         });
       }
       if (skill.fullManaPowerBonusRatio && manaAtConfirmation >= this.fullManaThreshold()) {
@@ -1609,12 +1636,16 @@ export class BattleGame {
     this.log(this.spiritName(spiritId) + ' 获得爆发 ' + stacks + ' 层（来源：' + source + '），当前 ' + target.damageAmpStacks + ' 层。');
   }
 
-  private consumeDamageAmpAfterSkill(spirit: RuntimeSpirit, lockedStacks: number) {
+  private consumeDamageAmpAfterSkill(spirit: RuntimeSpirit, lockedStacks: number, skill: SkillData) {
     if (lockedStacks <= 0) return;
+    if (this.spiritInfo(spirit.id).roleSystem === 'concept' && skill.kind !== 'attack') return;
     const status = spirit.statuses[CORE_STATUS_RULES.damageAmp.id];
     if (!status || status.stacks <= 0) return;
     const before = { ...status };
-    status.stacks -= 1;
+    const consumed = this.spiritInfo(spirit.id).roleSystem === 'concept'
+      ? Math.min(lockedStacks, status.stacks)
+      : 1;
+    status.stacks -= consumed;
     if (status.stacks <= 0) {
       delete spirit.statuses[CORE_STATUS_RULES.damageAmp.id];
       this.notifyStatusRemoval(before, spirit.id, 'consumed_by_skill');
@@ -1622,7 +1653,7 @@ export class BattleGame {
       this.notifyStatusChange(before, status, spirit.id, 'consumed_by_skill');
     }
     spirit.damageAmpStacks = spirit.statuses[CORE_STATUS_RULES.damageAmp.id]?.stacks ?? 0;
-    this.log(this.spiritName(spirit.id) + ' 的本次技能消耗 1 层旧爆发，剩余 ' + spirit.damageAmpStacks + ' 层。');
+    this.log(this.spiritName(spirit.id) + ' 的本次技能消耗 ' + consumed + ' 层旧爆发，剩余 ' + spirit.damageAmpStacks + ' 层。');
   }
 
   private addCharge(spiritId: string, turns: number, source: string) {
@@ -1675,6 +1706,34 @@ export class BattleGame {
     });
     this.notifyStatusChange(before, target.statuses[rule.id], spiritId, source);
     this.log(this.spiritName(spiritId) + ' 获得节能（来源：' + source + '）。');
+  }
+
+  private addShieldGuard(spiritId: string, turns: number, source: string) {
+    if (turns <= 0) return;
+    const target = this.getSpirit(spiritId);
+    const rule = CORE_STATUS_RULES.shieldGuard;
+    const before = target.statuses[rule.id] ? { ...target.statuses[rule.id] } : undefined;
+    target.statuses[rule.id] = mergeRuntimeStatus(target.statuses[rule.id], {
+      ...rule,
+      duration: turns,
+      appliedDuringOwnerAction: this.currentActorId() === spiritId,
+      instanceId: before?.instanceId ?? this.nextStatusInstanceId(),
+      sourceUnitId: this.telemetrySkillContext?.actorId ?? spiritId,
+      sourceSkillId: this.telemetrySkillContext?.skillId
+    });
+    this.notifyStatusChange(before, target.statuses[rule.id], spiritId, source);
+    this.log(this.spiritName(spiritId) + ' 获得盾阵 ' + turns + ' 回合（来源：' + source + '）。');
+  }
+
+  private extendShieldDuration(spiritId: string, actions: number, source: string) {
+    if (actions <= 0) return;
+    const target = this.getSpirit(spiritId);
+    if (target.shieldValue <= 0) {
+      this.log(this.spiritName(spiritId) + ' 当前没有护盾，' + source + ' 未延长护盾。');
+      return;
+    }
+    target.shieldExtensionTurns += actions;
+    this.log(this.spiritName(spiritId) + ' 的护盾延长 ' + actions + ' 次正常行动周期（来源：' + source + '）。');
   }
 
   private consumeEnergySavingForSkill(spirit: RuntimeSpirit, skill: SkillData, actualCost: number) {
@@ -1778,7 +1837,7 @@ export class BattleGame {
   }
 
   private applySkillStatusEffects(actorId: string, skill: SkillData, targetId = actorId) {
-    if (skill.addDamageAmpStacks) this.addDamageAmp(actorId, skill.addDamageAmpStacks, skill.name);
+    if (skill.addDamageAmpStacks) this.addDamageAmp(targetId, skill.addDamageAmpStacks, skill.name);
     if (skill.addChargeTurns) this.addCharge(actorId, skill.addChargeTurns, skill.name);
     if (skill.shieldValue) this.addShieldValue(targetId, skill.shieldValue, skill.name);
     if (skill.teamShieldValue) {
@@ -1789,6 +1848,11 @@ export class BattleGame {
       targets.forEach((id) => this.addRegen(id, skill.addRegenTurns ?? 0, skill.name));
     }
     if (skill.addEnergySaving) this.addEnergySaving(targetId, skill.name);
+    if (skill.addShieldGuardTurns) {
+      const targets = skill.target === 'ally-all' ? this.getActiveSpiritIds() : [targetId];
+      targets.forEach((id) => this.addShieldGuard(id, skill.addShieldGuardTurns ?? 0, skill.name));
+    }
+    if (skill.extendShieldDurationActions) this.extendShieldDuration(targetId, skill.extendShieldDurationActions, skill.name);
     if (skill.addBossVulnerabilityTurns) this.addBossVulnerability(skill.addBossVulnerabilityTurns, skill.name);
   }
 
@@ -2064,7 +2128,7 @@ export class BattleGame {
     }
     spirit.skillUseCounts[skill.id] = (spirit.skillUseCounts[skill.id] ?? 0) + 1;
     spirit.skillUseIndexAfterEntry += 1;
-    if (skill.firstSkillAfterEntryCostReduction) spirit.entrySkillAvailable = false;
+    spirit.entrySkillAvailable = false;
     if (skill.resetConsecutiveUseAtMinimumCost && actualCost === (skill.minimumCost ?? 0)) {
       spirit.lastSkillId = null;
       spirit.skillUseStreak = 0;
@@ -2075,6 +2139,7 @@ export class BattleGame {
 
   private finishSpiritTurnStatuses(spirit: RuntimeSpirit) {
     const before = Object.fromEntries(Object.entries(spirit.statuses).map(([id, status]) => [id, { ...status }]));
+    this.finishSpiritShield(spirit);
     tickOwnerStatuses(spirit.statuses);
     Object.entries(before).forEach(([id, status]) => {
       if (!spirit.statuses[id]) {
@@ -2085,12 +2150,21 @@ export class BattleGame {
       }
     });
     this.syncLegacyStatusFields(spirit);
-    this.finishSpiritShield(spirit);
   }
 
   private finishSpiritShield(spirit: RuntimeSpirit) {
     if (spirit.shieldValue <= 0) {
       spirit.freshShieldValue = 0;
+      return;
+    }
+    if (spirit.statuses[CORE_STATUS_RULES.shieldGuard.id]) {
+      spirit.freshShieldValue = 0;
+      return;
+    }
+    if (spirit.shieldExtensionTurns > 0) {
+      spirit.shieldExtensionTurns -= 1;
+      spirit.freshShieldValue = 0;
+      this.log(this.spiritName(spirit.id) + ' 的护盾延长生效，剩余 ' + spirit.shieldExtensionTurns + ' 次。');
       return;
     }
     const preservedFreshShield = Math.min(spirit.shieldValue, spirit.freshShieldValue);
@@ -2230,7 +2304,7 @@ export class BattleGame {
 
   private executeMonsterSkill(
     skill: MonsterSkillDefinition,
-    source: 'forced_followup' | 'forced_opening' | 'weighted' | 'basic_fallback' | 'skip',
+    source: 'forced_followup' | 'forced_opening' | 'sequence' | 'weighted' | 'basic_fallback' | 'skip',
     lockedTargetId?: string,
     lockedSlotIndex?: number,
     lockedRow?: Row,
@@ -2377,7 +2451,7 @@ export class BattleGame {
 
   private executeMonsterSingleDamage(
     skill: MonsterSkillDefinition,
-    source: 'forced_followup' | 'forced_opening' | 'weighted' | 'basic_fallback' | 'skip',
+    source: 'forced_followup' | 'forced_opening' | 'sequence' | 'weighted' | 'basic_fallback' | 'skip',
     lockedTargetId?: string,
     lockedSlotIndex?: number,
     lockedRow?: Row,
@@ -2622,12 +2696,6 @@ export class BattleGame {
       this.vacateDefeatedSpirit(targetId, skill.id);
     } else if (target.chargeTurns > 0) {
       this.log(this.spiritName(targetId) + ' 的蓄势被攻击触发。');
-      const charge = target.statuses[CORE_STATUS_RULES.charge.id];
-      if (charge) {
-        delete target.statuses[CORE_STATUS_RULES.charge.id];
-        target.chargeTurns = 0;
-        this.notifyStatusRemoval(charge, targetId, 'triggered');
-      }
       this.addDamageAmp(targetId, CHARGE_DAMAGE_AMP_STACKS_ON_HIT, '蓄势', this.state.boss.id, skill.id);
     }
     return hpDamage;
@@ -2973,6 +3041,7 @@ export class BattleGame {
     spirit.freshRegenTurns = 0;
     spirit.shieldValue = 0;
     spirit.freshShieldValue = 0;
+    spirit.shieldExtensionTurns = 0;
     spirit.shieldInstances = [];
   }
 
@@ -3092,8 +3161,12 @@ function normalizeEnemyConfig(config: StageEnemyConfig): Exclude<StageEnemyConfi
 }
 
 function defaultEnemyPosition(row: Row, index: number): EnemyBattlePosition {
-  if (row === 'front') return 'front';
+  if (row === 'front') return index === 0 ? 'front' : index === 1 ? 'front_1' : 'front_2';
   return index <= 1 ? 'back_1' : 'back_2';
+}
+
+function enemyPositionRow(position: EnemyBattlePosition): Row {
+  return position.startsWith('front') ? 'front' : 'back';
 }
 
 function bossOverridesToStats(overrides?: Partial<BossData>): Partial<MonsterFinalStats> {
@@ -3222,6 +3295,7 @@ function cloneSpirit(spirit: RuntimeSpirit): RuntimeSpirit {
     entrySkillAvailable: spirit.entrySkillAvailable ?? false,
     entrySequenceId: spirit.entrySequenceId ?? 0,
     skillUseIndexAfterEntry: spirit.skillUseIndexAfterEntry ?? 0,
+    shieldExtensionTurns: spirit.shieldExtensionTurns ?? 0,
     shieldInstances: (spirit.shieldInstances ?? []).map((instance) => ({ ...instance })),
     statuses: Object.fromEntries(Object.entries(spirit.statuses ?? {}).map(([id, status]) => [id, { ...status }]))
   };
@@ -3233,6 +3307,7 @@ function statusName(id: string) {
     charge: '蓄势',
     regen: '回复',
     'energy-saving': '节能',
+    'shield-guard': '盾阵',
     vulnerable: '易伤'
   };
   return names[id] ?? id;

@@ -9,7 +9,7 @@ let monsterData;
 let monsterSystem;
 
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   ({ BattleGame } = await server.ssrLoadModule('/src/battle.ts'));
   ({ battleSystemConfig } = await server.ssrLoadModule('/src/battleSystems.ts'));
   monsterData = await server.ssrLoadModule('/src/monsterData.ts');
@@ -66,8 +66,8 @@ test('等级倍率统一计算攻防速与生命，并允许实例属性覆盖',
   assert.equal(instance.stats.speed, 125);
 });
 
-test('正式怪物数据包含三主题各六只普通/精英怪与三只Boss', () => {
-  assert.equal(Object.keys(monsterData.MONSTERS).length, 21);
+test('正式怪物数据包含旧三主题、三只旧Boss及琉璃第一章五种怪物', () => {
+  assert.equal(Object.keys(monsterData.MONSTERS).length, 26);
   assert.equal(monsterData.MONSTERS.FORGE_BOSS_WARRIOR.baseHp, 5000);
   assert.equal(monsterData.MONSTERS.RANGE_BOSS_SHOOTER.baseHp, 2200);
   assert.equal(monsterData.MONSTERS.RANGE_BOSS_SHOOTER.coefficients.physicalAttack, 3);
@@ -305,7 +305,7 @@ test('射手Boss锁定单位后，其他目标行换宠不会改写雷霆贯射�
   const game = monsterGame(
     ['RANGE_BOSS_SHOOTER'],
     'range-lock-unrelated-swap',
-    ['P01', 'P02', 'P04', 'P03']
+    ['P01', 'P02', 'P04', 'P08']
   );
   const enemyId = activate(game);
   game.state.slots[0].row = 'back';

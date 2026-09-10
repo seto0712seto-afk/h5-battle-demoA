@@ -382,6 +382,106 @@ addMonster({
   temporaryPowerResponse: { targetSkillId: mageBolt, reductionPerPlayerAttack: 10 }
 });
 
+const luliStoneStrike = addSkill({
+  id: 'ES001', tier: '小怪技能', name: '石躯撞击', element: '土', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: true,
+  execution: { power: 100, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对当前玩家前排单体造成 100 物理威力伤害；没有前排时攻击当前后排。'
+});
+const luliLanternFire = addSkill({
+  id: 'ES002', tier: '小怪技能', name: '火团喷射', element: '火', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: true,
+  execution: { power: 120, damageType: 'magical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对当前玩家前排单体造成 120 魔法威力伤害；没有前排时攻击当前后排。'
+});
+const luliLanternBurst = addSkill({
+  id: 'ES004', tier: '小怪技能', name: '爆炎喷射', element: '火', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: { power: 200, damageType: 'magical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '聚火后对当前玩家前排单体造成 200 魔法威力伤害；没有前排时攻击当前后排。'
+});
+const luliLanternCharge = addSkill({
+  id: 'ES003', tier: '小怪技能', name: '聚火', element: '火', behaviorCategory: '预告攻击', cooldown: 0, isBasicAttack: false,
+  execution: { damageType: 'none', targetRule: 'self', telegraph: { enabled: true, followupSkillId: luliLanternBurst, targetSelection: 'none', lockMode: 'none', invalidTargetResult: 'retarget' } },
+  description: '本次行动进行聚火；下一次正常行动强制使用【爆炎喷射】。'
+});
+const luliBearClaw = addSkill({
+  id: 'ES005', tier: '小怪技能', name: '木棒猛敲', element: '木', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: true,
+  execution: { power: 100, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对当前玩家前排单体造成 100 物理威力伤害；没有前排时攻击当前后排。'
+});
+const luliWhiteWave = addSkill({
+  id: 'BS001', tier: 'Boss技能', name: '银蛇点水', element: '水', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: true,
+  execution: { power: 100, damageType: 'magical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对当前玩家前排单体造成 100 魔法威力伤害；没有前排时攻击当前后排。'
+});
+const luliWhiteFlood = addSkill({
+  id: 'BS003', tier: 'Boss技能', name: '银环穿心', element: '水', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: { power: 210, damageType: 'magical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '蛇袭预警后对当前玩家前排单体造成 210 魔法威力伤害；没有前排时攻击当前后排。'
+});
+const luliWhiteCharge = addSkill({
+  id: 'BS002', tier: 'Boss技能', name: '蛇息凝神', element: '水', behaviorCategory: '预告攻击', cooldown: 0, isBasicAttack: false,
+  execution: { damageType: 'none', targetRule: 'self', telegraph: { enabled: true, followupSkillId: luliWhiteFlood, targetSelection: 'none', lockMode: 'none', invalidTargetResult: 'retarget' } },
+  description: '本次行动不攻击并进入【蛇袭预警】；下一次正常行动强制使用【银环穿心】。'
+});
+const luliWolfClaw = addSkill({
+  id: 'BS004', tier: 'Boss技能', name: '狼毫风斩', element: '木', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: true,
+  execution: { power: 110, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对当前玩家前排单体造成 110 物理威力伤害；没有前排时攻击当前后排。'
+});
+const luliWolfFang = addSkill({
+  id: 'BS005', tier: 'Boss技能', name: '凌风猛袭', element: '木', behaviorCategory: '攻击', cooldown: 0, isBasicAttack: false,
+  execution: { power: 140, damageType: 'physical', targetRule: 'enemy_single', targetPreference: 'front' },
+  description: '对当前玩家前排单体造成 140 物理威力伤害；没有前排时攻击当前后排。'
+});
+
+const luliGrowthRates = { hp: 0.3, other: 0.1 };
+
+addMonster({
+  id: 'E01', name: '堆堆石', element: '土', level: 10, category: 'minor', role: 'warrior', defaultPosition: 'front',
+  coefficients: { physicalAttack: 0.8, physicalDefense: 1.2, magicAttack: 0.7, magicDefense: 1.2, speed: 0.8 }, baseHp: 130,
+  raceStats: { maxHp: 130, physicalAttack: 80, physicalDefense: 120, magicAttack: 70, magicDefense: 120, speed: 80 },
+  growthRates: luliGrowthRates, skillSequence: [luliStoneStrike],
+  skills: [{ skillId: luliStoneStrike, weight: 100, selectionMode: 'sequence' }]
+});
+addMonster({
+  id: 'E02', name: '灯笼怪', element: '火', level: 10, category: 'minor', role: 'mage', defaultPosition: 'back',
+  coefficients: { physicalAttack: 0.7, physicalDefense: 0.85, magicAttack: 1.4, magicDefense: 0.85, speed: 1.3 }, baseHp: 90,
+  raceStats: { maxHp: 90, physicalAttack: 70, physicalDefense: 85, magicAttack: 140, magicDefense: 85, speed: 130 },
+  growthRates: luliGrowthRates, skillSequence: [luliLanternFire, luliLanternCharge],
+  skills: [
+    { skillId: luliLanternFire, weight: 0, selectionMode: 'sequence' },
+    { skillId: luliLanternCharge, weight: 0, selectionMode: 'sequence' },
+    { skillId: luliLanternBurst, weight: 0, selectionMode: 'forced_followup' }
+  ]
+});
+addMonster({
+  id: 'E03', name: '小熊妖', element: '木', level: 10, category: 'minor', role: 'warrior', defaultPosition: 'front',
+  coefficients: { physicalAttack: 1.15, physicalDefense: 1, magicAttack: 0.75, magicDefense: 0.95, speed: 1.15 }, baseHp: 100,
+  raceStats: { maxHp: 100, physicalAttack: 115, physicalDefense: 100, magicAttack: 75, magicDefense: 95, speed: 115 },
+  growthRates: luliGrowthRates, skillSequence: [luliBearClaw],
+  skills: [{ skillId: luliBearClaw, weight: 100, selectionMode: 'sequence' }]
+});
+addMonster({
+  id: 'B01', name: '白衣秀士', element: '水', level: 10, category: 'boss', role: 'mage', defaultPosition: 'front',
+  coefficients: { physicalAttack: 0.7, physicalDefense: 1.05, magicAttack: 1.15, magicDefense: 1.1, speed: 0.8 }, baseHp: 300,
+  raceStats: { maxHp: 300, physicalAttack: 70, physicalDefense: 105, magicAttack: 115, magicDefense: 110, speed: 80 },
+  growthRates: luliGrowthRates, skillSequence: [luliWhiteWave, luliWhiteCharge],
+  skills: [
+    { skillId: luliWhiteWave, weight: 0, selectionMode: 'sequence' },
+    { skillId: luliWhiteCharge, weight: 0, selectionMode: 'sequence' },
+    { skillId: luliWhiteFlood, weight: 0, selectionMode: 'forced_followup' }
+  ]
+});
+addMonster({
+  id: 'B02', name: '凌虚子', element: '木', level: 10, category: 'boss', role: 'warrior', defaultPosition: 'front',
+  coefficients: { physicalAttack: 1.4, physicalDefense: 0.9, magicAttack: 0.7, magicDefense: 0.8, speed: 1.3 }, baseHp: 225,
+  raceStats: { maxHp: 225, physicalAttack: 140, physicalDefense: 90, magicAttack: 70, magicDefense: 80, speed: 130 },
+  growthRates: luliGrowthRates, skillSequence: [luliWolfClaw, luliWolfFang],
+  skills: [
+    { skillId: luliWolfClaw, weight: 0, selectionMode: 'sequence' },
+    { skillId: luliWolfFang, weight: 0, selectionMode: 'sequence' }
+  ]
+});
+
 export const MONSTER_SKILLS = skills;
 export const MONSTERS = monsters;
 

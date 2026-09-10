@@ -9,6 +9,7 @@ export const DUNGEON_RANDOM = 'DUNGEON_RANDOM';
 export const BOSS_CHALLENGE_FORGE = 'BOSS_CHALLENGE_FORGE';
 export const BOSS_CHALLENGE_RANGE = 'BOSS_CHALLENGE_RANGE';
 export const BOSS_CHALLENGE_MAGE = 'BOSS_CHALLENGE_MAGE';
+export const LULI_CHAPTER_ONE = 'LULI_CHAPTER_ONE';
 export const DEFAULT_RANDOM_DUNGEON_SEED = 20260722;
 export const RANDOM_DUNGEON_PRE_BOSS_HP_MULTIPLIER = 0.8;
 
@@ -21,9 +22,56 @@ function randomDungeonEnemy(enemyId: string, position: EnemyBattlePosition): Sta
   return { enemyId, position, overrides: { maxHp } };
 }
 
-function battle(dungeonId: string, stage: number, enemies: StageEnemyConfig[]): StageBattleConfig {
-  return { battleId: `${dungeonId}_BATTLE_${stage}`, enemies };
+function battle(dungeonId: string, stage: number, enemies: StageEnemyConfig[], targetRounds?: [number, number]): StageBattleConfig {
+  return { battleId: `${dungeonId}_BATTLE_${stage}`, enemies, ...(targetRounds ? { targetRounds } : {}) };
 }
+
+const LULI_CHAPTER_ONE_STAGE: StageConfig = {
+  id: LULI_CHAPTER_ONE,
+  name: '琉璃·第一章',
+  description: '依据《怪物配置表 v1.6》接入的八场连续战斗，包含堆堆石、灯笼怪、小熊妖与双首领战。',
+  type: 'fixed',
+  carryOverPlayerState: true,
+  battles: [
+    battle(LULI_CHAPTER_ONE, 1, [enemy('E01', 'front')], [2, 3]),
+    battle(LULI_CHAPTER_ONE, 2, [enemy('E01', 'front'), enemy('E02', 'back_1')], [3, 5]),
+    battle(LULI_CHAPTER_ONE, 3, [
+      enemy('E01', 'front'),
+      { enemyId: 'E02', instanceName: '灯笼怪A', position: 'back_1', aiSequenceStartIndex: 1 },
+      { enemyId: 'E02', instanceName: '灯笼怪B', position: 'back_2', aiSequenceStartIndex: 0 }
+    ], [4, 6]),
+    {
+      ...battle(LULI_CHAPTER_ONE, 4, [
+        { enemyId: 'E03', instanceName: '小熊妖A', position: 'front_1' },
+        { enemyId: 'E03', instanceName: '小熊妖B', position: 'front_2' }
+      ], [3, 5]),
+      notes: ['原表仅标注两只小熊妖速度轻微错开，未提供具体修正值；当前沿用标准速度，待数值确认后补齐。']
+    },
+    {
+      ...battle(LULI_CHAPTER_ONE, 5, [
+        { enemyId: 'E03', instanceName: '小熊妖A', position: 'front_1' },
+        { enemyId: 'E03', instanceName: '小熊妖B', position: 'front' },
+        { enemyId: 'E03', instanceName: '小熊妖C', position: 'front_2' }
+      ], [4, 6]),
+      notes: ['原表仅标注 A 高速、B 初始受伤，未提供具体数值；为避免编造，当前沿用标准速度与满生命，待数值确认后补齐。']
+    },
+    battle(LULI_CHAPTER_ONE, 6, [
+      { enemyId: 'E03', instanceName: '小熊妖A', position: 'front_1' },
+      { enemyId: 'E03', instanceName: '小熊妖B', position: 'front_2' },
+      enemy('E02', 'back_1')
+    ], [5, 7]),
+    battle(LULI_CHAPTER_ONE, 7, [
+      enemy('E01', 'front_1'), enemy('E03', 'front_2'), enemy('E02', 'back_1')
+    ], [5, 7]),
+    {
+      ...battle(LULI_CHAPTER_ONE, 8, [
+        { enemyId: 'B02', instanceName: '凌虚子', position: 'front_1' },
+        { enemyId: 'B01', instanceName: '白衣秀士', position: 'front_2' }
+      ], [6, 9]),
+      notes: ['按固定脚本循环；禁用召唤与死亡狂暴。']
+    }
+  ]
+};
 
 const SINGLE_BOSS_STAGES: StageConfig[] = [
   {
@@ -147,7 +195,7 @@ const RANDOM_STAGE: StageConfig = {
   battles: generateRandomDungeon(DEFAULT_RANDOM_DUNGEON_SEED)
 };
 
-export const STAGES: StageConfig[] = [...SINGLE_BOSS_STAGES, ...FIXED_STAGES, RANDOM_STAGE];
+export const STAGES: StageConfig[] = [LULI_CHAPTER_ONE_STAGE, ...SINGLE_BOSS_STAGES, ...FIXED_STAGES, RANDOM_STAGE];
 
 export function stageById(stageId: string, seed = DEFAULT_RANDOM_DUNGEON_SEED) {
   const stage = STAGES.find((item) => item.id === stageId);

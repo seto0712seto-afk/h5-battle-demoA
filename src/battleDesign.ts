@@ -4,7 +4,8 @@ export const BATTLE_BEHAVIOR_LABELS: Record<BattleBehavior, string> = {
   attack: '攻击',
   protect: '防护',
   recover: '恢复',
-  energy: '回能'
+  energy: '回能',
+  support: '辅助'
 };
 
 export interface BattleDesignIssue {
@@ -22,6 +23,7 @@ export function validateBattleDesign(spirits: SpiritData[], skills: Record<strin
   spirits.forEach((spirit) => {
     const allowed = new Set<BattleBehavior>([spirit.primaryRole]);
     if (spirit.secondaryRole) allowed.add(spirit.secondaryRole);
+    const enforceLegacyRoles = spirit.roleSystem !== 'concept';
 
     spirit.skillIds.forEach((skillId) => {
       const skill = skills[skillId];
@@ -40,7 +42,7 @@ export function validateBattleDesign(spirits: SpiritData[], skills: Record<strin
       const declared = new Set<BattleBehavior>([skill.primaryBehavior]);
       if (skill.secondaryBehavior) declared.add(skill.secondaryBehavior);
       declared.forEach((behavior) => {
-        if (allowed.has(behavior)) return;
+        if (!enforceLegacyRoles || allowed.has(behavior)) return;
         issues.push({
           code: 'role-overflow',
           spiritId: spirit.id,
@@ -86,7 +88,9 @@ function inferSkillBehaviors(skill: SkillData) {
     skill.shieldPercent ||
     skill.shieldValue ||
     skill.teamShieldValue ||
-    skill.addChargeTurns
+    skill.addChargeTurns ||
+    skill.addShieldGuardTurns ||
+    skill.extendShieldDurationActions
   ) {
     behaviors.add('protect');
   }
@@ -96,6 +100,7 @@ function inferSkillBehaviors(skill: SkillData) {
     skill.teamHealPercent ||
     skill.selfHealPercent ||
     skill.frontHealPercent ||
+    skill.lowestHpAllyHealPercent ||
     skill.healFlatValue ||
     skill.addRegenTurns ||
     skill.fullManaHealBonusPercent
@@ -105,5 +110,6 @@ function inferSkillBehaviors(skill: SkillData) {
   if (skill.gain > 0 || skill.restoreManaTo !== undefined || skill.gainWhenManaBelow !== undefined || skill.addEnergySaving) {
     behaviors.add('energy');
   }
+  if (skill.primaryBehavior === 'support' || skill.secondaryBehavior === 'support') behaviors.add('support');
   return behaviors;
 }

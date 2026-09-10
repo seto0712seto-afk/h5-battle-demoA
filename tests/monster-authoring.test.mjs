@@ -8,7 +8,7 @@ let data;
 let monsterData;
 
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   authoring = await server.ssrLoadModule('/src/battleMonsterAuthoring.ts');
   data = await server.ssrLoadModule('/src/data.ts');
   monsterData = await server.ssrLoadModule('/src/monsterData.ts');

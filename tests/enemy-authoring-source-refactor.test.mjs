@@ -14,6 +14,7 @@ const EXPECTED_ENEMY_IDS = [
   'MAGE_ELITE_WARRIOR', 'MAGE_ELITE_SHOOTER', 'MAGE_ELITE_MAGE',
   'FORGE_BOSS_WARRIOR', 'RANGE_BOSS_SHOOTER', 'MAGE_BOSS'
 ];
+const LULI_ENEMY_IDS = ['E01', 'E02', 'E03', 'B01', 'B02'];
 
 const THEME_ENEMY_SLOTS = [
   'gruntWarrior', 'gruntShooter', 'gruntMage',
@@ -49,7 +50,7 @@ before(async () => {
   dtoBaseline = JSON.parse(dtoBaselineText);
   sourceFile = ts.createSourceFile(sourcePath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   authoring = await server.ssrLoadModule('/src/battleMonsterAuthoring.ts');
   monsterData = await server.ssrLoadModule('/src/monsterData.ts');
   monsterSystem = await server.ssrLoadModule('/src/monsterSystem.ts');
@@ -107,20 +108,21 @@ function descendants(root, predicate) {
   return matches;
 }
 
-test('pre-refactor baseline contains exactly the 21 canonical Enemy IDs', () => {
+test('pre-refactor baseline remains intact and the current registry appends five Liuli enemies', () => {
   assert.equal(baseline.capturedFromCommit, 'feecbed');
   assert.deepEqual(Object.keys(baseline.monsters), EXPECTED_ENEMY_IDS);
-  assert.deepEqual(Object.keys(monsterData.MONSTERS), EXPECTED_ENEMY_IDS);
-  assert.equal(new Set(Object.keys(monsterData.MONSTERS)).size, 21);
+  assert.deepEqual(Object.keys(monsterData.MONSTERS), [...EXPECTED_ENEMY_IDS, ...LULI_ENEMY_IDS]);
+  assert.equal(new Set(Object.keys(monsterData.MONSTERS)).size, 26);
 });
 
 test('all 21 final MONSTERS definitions retain full pre-refactor semantics', () => {
-  assert.deepEqual(monsterData.MONSTERS, baseline.monsters);
+  assert.deepEqual(Object.fromEntries(EXPECTED_ENEMY_IDS.map((id) => [id, monsterData.MONSTERS[id]])), baseline.monsters);
 });
 
 test('MONSTER_SKILLS content and registration order retain pre-refactor semantics', () => {
-  assert.deepEqual(Object.keys(monsterData.MONSTER_SKILLS), Object.keys(baseline.monsterSkills));
-  assert.deepEqual(monsterData.MONSTER_SKILLS, baseline.monsterSkills);
+  const baselineSkillIds = Object.keys(baseline.monsterSkills);
+  assert.deepEqual(Object.keys(monsterData.MONSTER_SKILLS).slice(0, baselineSkillIds.length), baselineSkillIds);
+  assert.deepEqual(Object.fromEntries(baselineSkillIds.map((id) => [id, monsterData.MONSTER_SKILLS[id]])), baseline.monsterSkills);
 });
 
 test('all 18 Theme Enemies own independent canonical A-class literals', () => {
@@ -163,7 +165,12 @@ test('all 18 Theme Enemies own independent canonical A-class literals', () => {
 });
 
 test('all three Bosses retain unique direct addMonster source nodes', () => {
-  const calls = topLevelCalls('addMonster');
+  const calls = topLevelCalls('addMonster').filter((call) => {
+    const definition = call.arguments[0];
+    if (!ts.isObjectLiteralExpression(definition)) return false;
+    const id = propertyAssignment(definition, 'id')?.initializer;
+    return ts.isStringLiteralLike(id) && EXPECTED_ENEMY_IDS.slice(18).includes(id.text);
+  });
   assert.equal(calls.length, 3);
 
   const bossIds = calls.map((call) => {
@@ -223,6 +230,6 @@ test('derived stats retain pre-refactor results at default and alternate levels'
 
 test('S4B-1 Enemy authoring DTOs retain pre-refactor semantics', () => {
   const current = authoring.getBattleMonsterAuthoringDefinitions()
-    .filter((definition) => definition.kind === 'enemyMonster');
+    .filter((definition) => definition.kind === 'enemyMonster' && EXPECTED_ENEMY_IDS.includes(definition.id));
   assert.deepEqual(current, dtoBaseline.enemyAuthoringDtos);
 });

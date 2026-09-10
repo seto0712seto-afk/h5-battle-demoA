@@ -12,7 +12,7 @@ let BattleGame;
 let battleSystemConfig;
 
 before(async () => {
-  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
+  server = await createServer({ configFile: false, cacheDir: '.vite-cache', server: { middlewareMode: true }, appType: 'custom', logLevel: 'silent' });
   ({ BattleGame } = await server.ssrLoadModule('/src/battle.ts'));
   ({ battleSystemConfig } = await server.ssrLoadModule('/src/battleSystems.ts'));
 });
